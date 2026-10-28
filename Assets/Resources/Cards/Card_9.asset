@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8ab28013335a0eb408c50507787adb56, type: 3}
+  m_Name: Card_9
+  m_EditorClassIdentifier: Assembly-CSharp::CardGame.Data.CardData
+  cardID: 9
+  cardName: "Kurba\u011Fa Bilgesi"
+  manaCost: 0
+  attackPower: 40
+  health: 80
+  cardPrefab: {fileID: 0}
+  cardIcon: {fileID: 21300000, guid: 2a451464386698f408820c7c0e98e947, type: 3}

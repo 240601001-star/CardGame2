@@ -1,0 +1,3 @@
+PASS: 173 Task 02 checks; 65880 Task 01 regression checks.
+Battle/tactic rules, simultaneous death, bounds, ownership, all states, camera-clear gate, visibility loss, one-use cards, hidden tactics, 3-win ending, 5-round draw, restart, persisted HUD/icons verified.
+No physical webcam or interactive Play Mode test performed. Editor preview-scene tests only.
