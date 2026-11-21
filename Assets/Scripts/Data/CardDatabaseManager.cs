@@ -107,7 +107,7 @@ namespace CardGame.Data
                     continue;
                 }
 
-                if (!int.TryParse(cols[0].Trim(), out int id) || id < 0 || id > 9 ||
+                if (!int.TryParse(cols[0].Trim(), out int id) || id < 0 || id > 49 ||
                     !int.TryParse(cols[2].Trim(), out int mana) || mana < 0 ||
                     !int.TryParse(cols[3].Trim(), out int attack) || attack < 0 ||
                     !int.TryParse(cols[4].Trim(), out int hp) || hp < 1)
@@ -133,9 +133,9 @@ namespace CardGame.Data
 
         private void RegisterCard(CardData card)
         {
-            if (card == null || card.cardID < 0 || card.cardID > 9 || card.attackPower < 0 || card.health < 1)
+            if (card == null || card.cardID < 0 || card.cardID > 49 || card.attackPower < 0 || card.health < 1)
             {
-                Debug.LogWarning("[CardDB] Invalid CardData asset; expected ID 0-9 and valid stats.");
+                Debug.LogWarning("[CardDB] Invalid CardData asset; expected ID 0-49 and valid stats.");
                 return;
             }
             if (_cardLookup.ContainsKey(card.cardID))

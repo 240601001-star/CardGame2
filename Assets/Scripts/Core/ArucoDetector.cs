@@ -3,14 +3,14 @@ using System.Collections.Generic;
 
 namespace CardGame.Core
 {
-    /// <summary>Managed, conservative DICT_4X4_50 ID 0-9 detector. No Unity/native dependency.</summary>
+    /// <summary>Managed, conservative DICT_4X4_50 ID 0-49 detector. No Unity/native dependency.</summary>
     public sealed class ArucoDetector
     {
-        // OpenCV predefined_dictionaries.hpp, DICT_4X4_1000_BYTES first ten entries.
+        // OpenCV predefined_dictionaries.hpp, DICT_4X4_1000_BYTES first fifty entries.
         // DICT_4X4_50 uses the first 50 entries of that table. Row-major, white = 1.
         // https://github.com/opencv/opencv/blob/4.x/modules/objdetect/src/aruco/predefined_dictionaries.hpp
         private static readonly ushort[] Codes =
-            { 0xB532, 0x0F9A, 0x332D, 0x9946, 0x549E, 0x79CD, 0x9E2E, 0xC4F2, 0xFEDA, 0xCF56 };
+            { 0xB532, 0x0F9A, 0x332D, 0x9946, 0x549E, 0x79CD, 0x9E2E, 0xC4F2, 0xFEDA, 0xCF56, 0xF991, 0x11A7, 0x0EB7, 0x2A0F, 0x24B1, 0x263E, 0x4665, 0x6600, 0x6C5E, 0x76AF, 0x868B, 0xB02B, 0xCCD5, 0xDD82, 0xFE47, 0x9471, 0xACE4, 0xA554, 0x2123, 0x346F, 0x4415, 0x57B2, 0x9ECF, 0xF0CB, 0x08AE, 0x0929, 0x1875, 0x04FF, 0x0DF6, 0x1C5A, 0x1718, 0x2A28, 0x328C, 0x38B2, 0x24E8, 0x2EEB, 0x2D3F, 0x4B64, 0x502E, 0x5013 };
 
         public struct Point
         {

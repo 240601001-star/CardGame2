@@ -73,3 +73,20 @@ crashlytics-build.properties
 # Temporary auto-generated Android Assets
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
+
+# Local task reports, validation artifacts and one-off Editor helpers
+/TASK*-REPORT.md
+/Task*-results.txt
+/Task*-scene-setup.txt
+/Task*Verification/
+/MainMenu-*-results.txt
+/MainMenu-play-results.txt
+/New40-import-results.txt
+/Assets/Editor/Task*
+/Assets/Editor/MainMenuSetup.cs
+/Assets/Editor/MainMenuSetup.cs.meta
+/Assets/Editor/New40CardImport.cs
+/Assets/Editor/New40CardImport.cs.meta
+
+# Unrelated nested Git checkout
+/Card/

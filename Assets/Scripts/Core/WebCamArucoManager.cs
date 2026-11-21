@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -6,7 +6,7 @@ using CardGame.Data;
 
 namespace CardGame.Core
 {
-    /// <summary>Webcam capture and managed OpenCV DICT_4X4_50 ID 0-9 detection.</summary>
+    /// <summary>Webcam capture and managed OpenCV DICT_4X4_50 ID 0-49 detection.</summary>
     public class WebCamArucoManager : MonoBehaviour
     {
         [Header("Webcam")]
@@ -189,7 +189,7 @@ namespace CardGame.Core
         {
             if (!showDebugPanel) return;
             GUILayout.BeginArea(new Rect(12, 12, 470, 240), GUI.skin.box);
-            GUILayout.Label("ArUco Card Scanner — DICT_4X4_50 / 0–9");
+            GUILayout.Label("ArUco Card Scanner — DICT_4X4_50 / 0–49");
             GUILayout.Label("Webcam: " + (_waitingForPermission ? "Permission pending" : IsCameraRunning ?
                 (Time.unscaledTime - _lastFreshFrame <= VisibilityTimeout ? "Receiving frames" : "No fresh frame") : "Stopped / unavailable"));
             GUILayout.Label("Marker ID: " + (DetectedMarkerID < 0 ? "—" : DetectedMarkerID.ToString()));

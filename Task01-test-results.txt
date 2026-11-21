@@ -1,2 +1,0 @@
-PASS: 65880 Task 01 regression checks under Task 02 duel rules. Original detector/PNG tests unchanged; obsolete direct-player-damage expectations replaced.
-No physical webcam or Play Mode test performed.

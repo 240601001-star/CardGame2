@@ -1,1 +1,0 @@
-PASS: real Play Mode initialization, simulated P1/P2 scans, hidden tactics, actual button handlers, coroutine-driven simultaneous HP steps (20/0 result), next round and restart. Webcam component disabled in a scene copy; no physical webcam test.

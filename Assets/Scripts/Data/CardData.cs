@@ -4,14 +4,14 @@ namespace CardGame.Data
 {
     /// <summary>
     /// ScriptableObject that defines a single card's identity and stats.
-    /// Each instance maps 1-to-1 with an ArUco marker ID (0–9).
+    /// Each instance maps 1-to-1 with an ArUco marker ID (0–49).
     /// </summary>
     [CreateAssetMenu(fileName = "NewCard", menuName = "CardGame/Card Data")]
     public class CardData : ScriptableObject
     {
         [Header("Identity")]
-        [Tooltip("Must match the ArUco marker ID printed on the physical card (0–9).")]
-        [Range(0, 9)]
+        [Tooltip("Must match the ArUco marker ID printed on the physical card (0–49).")]
+        [Range(0, 49)]
         public int cardID;
 
         [Tooltip("Display name shown in UI.")]

@@ -1,1 +1,0 @@
-PASS: existing Canvas, webcam and UIManager preserved; full duel HUD serialized; 10 card sprites linked.

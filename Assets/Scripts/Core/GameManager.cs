@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -141,7 +141,7 @@ namespace CardGame.Core
             var all = new HashSet<int>();
             foreach (int[] deck in new[] { player1Deck, player2Deck })
                 foreach (int id in deck)
-                    if (id < 0 || id > 9 || !all.Add(id)) return "Desteler 0–9 aralığında, birbirinden farklı 10 ID içermeli.";
+                    if (id < 0 || id > 49 || !all.Add(id)) return "Desteler 0–49 aralığında, birbirinden farklı 10 ID içermeli.";
             return "";
         }
         private void ClearRound()
@@ -219,7 +219,7 @@ namespace CardGame.Core
             _clearStart = _lastClearFrame = -1;
             if (!IsGameActive || AwaitingCardRemoval || !IsScanningState) { ResetCandidate(); return; }
             int zone = position.y >= zoneSplitY ? 1 : 0;
-            if (id < 0 || id > 9 || HasUsedCard(id) || !OwnsCard(CurrentTurnPlayer, id) || (enforcePlayerZones && zone != CurrentTurnPlayer))
+            if (id < 0 || id > 49 || HasUsedCard(id) || !OwnsCard(CurrentTurnPlayer, id) || (enforcePlayerZones && zone != CurrentTurnPlayer))
             {
                 ResetCandidate();
                 StatusMessage = HasUsedCard(id) ? "Bu kart zaten kullanıldı." : !OwnsCard(CurrentTurnPlayer, id) ? "Bu kart diğer oyuncuya ait." : "Kartı aktif oyuncunun bölgesinde gösterin.";
