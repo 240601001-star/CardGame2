@@ -1,5 +1,6 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 using CardGame.Core;
 using CardGame.Data;
 
@@ -10,40 +11,46 @@ namespace CardGame.UI
     {
         [Header("Card HP (not player life)")]
         [SerializeField] private Slider player1HealthBar;
-        [SerializeField] private Text player1HealthText;
+        [SerializeField] private TMP_Text player1HealthText;
         [SerializeField] private Slider player2HealthBar;
-        [SerializeField] private Text player2HealthText;
+        [SerializeField] private TMP_Text player2HealthText;
         [Header("Match")]
-        [SerializeField] private Text turnIndicatorText;
-        [SerializeField] private Text roundText;
-        [SerializeField] private Text scoreText;
-        [SerializeField] private Text scanStatusText;
-        [SerializeField] private Text player1DeckText;
-        [SerializeField] private Text player2DeckText;
+        [SerializeField] private TMP_Text turnIndicatorText;
+        [SerializeField] private TMP_Text roundText;
+        [SerializeField] private TMP_Text scoreText;
+        [SerializeField] private TMP_Text scanStatusText;
+        [SerializeField] private TMP_Text player1DeckText;
+        [SerializeField] private TMP_Text player2DeckText;
         [Header("Player 1 card")]
         [SerializeField] private GameObject cardInfoPanel;
         [SerializeField] private Image cardIconImage;
-        [SerializeField] private Text cardNameText;
-        [SerializeField] private Text cardStatsText;
-        [SerializeField] private Text player1TacticText;
+        [SerializeField] private TMP_Text cardNameText;
+        [SerializeField] private TMP_Text cardStatsText;
+        [SerializeField] private TMP_Text player1TacticText;
         [Header("Player 2 card")]
         [SerializeField] private Image player2CardImage;
-        [SerializeField] private Text player2CardNameText;
-        [SerializeField] private Text player2CardStatsText;
-        [SerializeField] private Text player2TacticText;
+        [SerializeField] private TMP_Text player2CardNameText;
+        [SerializeField] private TMP_Text player2CardStatsText;
+        [SerializeField] private TMP_Text player2TacticText;
         [Header("Tactics")]
         [SerializeField] private GameObject tacticPanel;
         [SerializeField] private Button attackButton;
         [SerializeField] private Button defenseButton;
         [SerializeField] private Button focusButton;
-        [SerializeField] private Text battleStatusText;
+        [SerializeField] private TMP_Text battleStatusText;
         [Header("Results")]
         [SerializeField] private GameObject roundResultPanel;
-        [SerializeField] private Text roundResultText;
+        [SerializeField] private TMP_Text roundResultText;
         [SerializeField] private Button endTurnButton; // reused as Next Round
         [SerializeField] private GameObject gameOverPanel;
-        [SerializeField] private Text gameOverText;
+        [SerializeField] private TMP_Text gameOverText;
         [SerializeField] private Button restartButton;
+        [SerializeField] private Button mainMenuButton;
+        [Header("Modular state panels")]
+        [SerializeField] private GameObject scannerPanel,battlePanel,handoffPanel,player1PrivacyPanel,player2PrivacyPanel;
+        [SerializeField] private GameObject scannerPreviewObject;
+        [SerializeField] private TMP_Text handoffText,player1ScoreText,player2ScoreText,scannerCaption;
+        [SerializeField] private GameObject tacticGuidePanel;
         private GameManager _game;
 
         private void OnEnable() { Bind(); Refresh(); }
@@ -54,6 +61,7 @@ namespace CardGame.UI
             if (focusButton != null) focusButton.onClick.AddListener(OnFocus);
             if (endTurnButton != null) endTurnButton.onClick.AddListener(OnNextRound);
             if (restartButton != null) restartButton.onClick.AddListener(OnRestart);
+            if (mainMenuButton != null) mainMenuButton.onClick.AddListener(OnMainMenu);
             Bind();
             Refresh();
         }
@@ -78,6 +86,7 @@ namespace CardGame.UI
             if (focusButton != null) focusButton.onClick.RemoveListener(OnFocus);
             if (endTurnButton != null) endTurnButton.onClick.RemoveListener(OnNextRound);
             if (restartButton != null) restartButton.onClick.RemoveListener(OnRestart);
+            if (mainMenuButton != null) mainMenuButton.onClick.RemoveListener(OnMainMenu);
         }
         private void Update()
         {
@@ -105,6 +114,19 @@ namespace CardGame.UI
                 _game.State == DuelState.ResolvingBattle ? "DÜELLO" : _game.State == DuelState.RoundResult ? "RAUND SONUCU" : $"OYUNCU {_game.CurrentTurnPlayer + 1}");
             ShowCard(0, cardIconImage, cardNameText, cardStatsText, player1TacticText, player1HealthBar, player1HealthText);
             ShowCard(1, player2CardImage, player2CardNameText, player2CardStatsText, player2TacticText, player2HealthBar, player2HealthText);
+            Set(player1ScoreText,_game.Score.Player1.ToString());Set(player2ScoreText,_game.Score.Player2.ToString());
+            bool scanning=_game.State==DuelState.WaitingForPlayer1Card||_game.State==DuelState.WaitingForPlayer2Card;
+            bool tactics=_game.State==DuelState.WaitingForPlayer1Tactic||_game.State==DuelState.WaitingForPlayer2Tactic;
+            bool privacy=scanning&&_game.AwaitingCardRemoval;
+            Set(scannerCaption,tactics?"TAKTİĞİNİ SEÇ":privacy?"OYUNCU DEĞİŞİMİ":"KARTI TARA");
+            if(tacticGuidePanel!=null)tacticGuidePanel.SetActive(tactics);
+            if(scannerPanel!=null)scannerPanel.SetActive(scanning||tactics);
+            if(scannerPreviewObject!=null)scannerPreviewObject.SetActive(scanning&&!privacy);
+            if(battlePanel!=null)battlePanel.SetActive(_game.State==DuelState.ResolvingBattle);
+            if(handoffPanel!=null)handoffPanel.SetActive(privacy);
+            Set(handoffText,$"OYUNCU {_game.CurrentTurnPlayer+1}\nKartları kaldır ve kamerayı boşalt.");
+            if(player1PrivacyPanel!=null)player1PrivacyPanel.SetActive(_game.GetVisibleCard(0)==null);
+            if(player2PrivacyPanel!=null)player2PrivacyPanel.SetActive(_game.GetVisibleCard(1)==null);
             if (tacticPanel != null) tacticPanel.SetActive(_game.CanChooseTactic);
             if (attackButton != null) attackButton.interactable = _game.CanChooseTactic;
             if (defenseButton != null) defenseButton.interactable = _game.CanChooseTactic;
@@ -123,7 +145,7 @@ namespace CardGame.UI
             Set(player1DeckText, DeckSummary(0));
             Set(player2DeckText, DeckSummary(1));
         }
-        private void ShowCard(int player, Image image, Text nameText, Text stats, Text tacticText, Slider bar, Text hpText)
+        private void ShowCard(int player, Image image, TMP_Text nameText, TMP_Text stats, TMP_Text tacticText, Slider bar, TMP_Text hpText)
         {
             CardData card = _game.GetVisibleCard(player);
             bool reveal = _game.CardsRevealed;
@@ -147,11 +169,12 @@ namespace CardGame.UI
             return text;
         }
         public static string TacticLabel(Tactic tactic) => tactic == Tactic.Attack ? "SALDIRI" : tactic == Tactic.Defense ? "SAVUNMA" : "ODAK";
-        private static void Set(Text text, string value) { if (text != null) text.text = value; }
+        private static void Set(TMP_Text text, string value) { if (text != null) text.text = value; }
         private void OnAttack() { _game?.SelectTactic(Tactic.Attack); }
         private void OnDefense() { _game?.SelectTactic(Tactic.Defense); }
         private void OnFocus() { _game?.SelectTactic(Tactic.Focus); }
         private void OnNextRound() { _game?.ContinueRound(); }
         private void OnRestart() { _game?.RestartGame(); }
+        private void OnMainMenu() { FindAnyObjectByType<ArcaneSceneNavigation>()?.ReturnToMenu(); }
     }
 }

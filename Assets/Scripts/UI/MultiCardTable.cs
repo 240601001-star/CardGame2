@@ -5,6 +5,7 @@ using CardGame.Data;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using TMPro;
 
 namespace CardGame.UI
 {
@@ -13,7 +14,7 @@ namespace CardGame.UI
         public const string SceneName="MultiCardScene";
         public MultiCardMatch Match { get; private set; }
         private Transform canvas,hand,ownBoard,enemyBoard;
-        private Text ownInfo,enemyInfo,turnInfo,status,selection,passText,scanStatus;
+        private TMP_Text ownInfo,enemyInfo,turnInfo,status,selection,passText,scanStatus;
         private WebCamArucoManager scanner;
         private readonly MultiCardScanGate scanGate=new MultiCardScanGate();
         private bool scannerBound;
@@ -28,17 +29,17 @@ namespace CardGame.UI
         public void Initialize()
         {
             if(canvas!=null)return;
-            canvas=ArcaneMainMenu.CreateCanvas("MultiCardCanvas",10);canvas.SetParent(transform,false);
+            canvas=ArcaneMainMenu.CreateCanvas("MultiCardCanvas",10);canvas.SetParent(transform,false);canvas=ArcaneUIFactory.SafeContent(canvas);
             ArcaneMainMenu.Box("Background",canvas,0,0,1,1,ArcaneMainMenu.Ink);
             ArcaneMainMenu.Label("Title",canvas,"ARCANE DUEL  /  ÇOK KARTLI MOD",.025f,.925f,.79f,.99f,25,ArcaneMainMenu.Gold,TextAnchor.MiddleLeft);
             ArcaneMainMenu.Action("TableMenuButton",canvas,"ANA MENÜ",.82f,.935f,.98f,.985f,()=>{scanGate.Lock();leavePanel.SetActive(true);});
             enemyInfo=ArcaneMainMenu.Label("EnemyInfo",canvas,"",.025f,.84f,.48f,.92f,19,Color.white,TextAnchor.MiddleLeft);
             enemyHero=ArcaneMainMenu.Action("EnemyHeroButton",canvas,"RAKİP KAHRAMAN",.51f,.845f,.79f,.915f,()=>AttackTarget(-1));
             enemyBoard=ArcaneMainMenu.Box("EnemyBoard",canvas,.025f,.59f,.79f,.825f,new Color(.14f,.09f,.14f));
-            ArcaneMainMenu.Label("EnemyBoardHeading",canvas,"RAKİP MASASI",.04f,.795f,.3f,.825f,12,new Color(.73f,.57f,.62f),TextAnchor.MiddleLeft);
+            ArcaneMainMenu.Label("EnemyBoardHeading",canvas,"RAKİP MASASI",.04f,.784f,.3f,.814f,12,new Color(.73f,.57f,.62f),TextAnchor.MiddleLeft);
             ArcaneMainMenu.Box("Divider",canvas,.025f,.558f,.79f,.56f,new Color(.45f,.35f,.18f));
             ownBoard=ArcaneMainMenu.Box("OwnBoard",canvas,.025f,.31f,.79f,.545f,new Color(.075f,.14f,.15f));
-            ArcaneMainMenu.Label("OwnBoardHeading",canvas,"SENİN MASAN",.04f,.515f,.3f,.545f,12,new Color(.52f,.74f,.70f),TextAnchor.MiddleLeft);
+            ArcaneMainMenu.Label("OwnBoardHeading",canvas,"SENİN MASAN",.04f,.504f,.3f,.534f,12,new Color(.52f,.74f,.70f),TextAnchor.MiddleLeft);
             ownInfo=ArcaneMainMenu.Label("OwnInfo",canvas,"",.025f,.25f,.79f,.305f,19,ArcaneMainMenu.Gold,TextAnchor.MiddleLeft);
             hand=ArcaneMainMenu.Box("Hand",canvas,.025f,.025f,.79f,.245f,ArcaneMainMenu.Panel);
             var sidebar=ArcaneMainMenu.Box("Controls",canvas,.815f,.025f,.985f,.92f,ArcaneMainMenu.Panel);
@@ -49,10 +50,11 @@ namespace CardGame.UI
             draw=ArcaneMainMenu.Action("DrawCardButton",sidebar,"KART ÇEK • 1 MANA",.07f,.16f,.93f,.225f,()=>{Match.ExtraDraw();Refresh();});
             endTurn=ArcaneMainMenu.Action("EndTurnButton",sidebar,"TURU BİTİR",.07f,.085f,.93f,.15f,EndTurn);
             ArcaneMainMenu.Action("RestartTableButton",sidebar,"YENİ MAÇ",.07f,.015f,.93f,.075f,Restart);
-            foreach(var button in new[]{play,draw,endTurn})button.GetComponentInChildren<Text>().fontSize=15;
+            foreach(var button in new[]{play,draw,endTurn})button.GetComponentInChildren<TMP_Text>().fontSize=22;
             var cameraBox=ArcaneMainMenu.Box("CameraPreviewBox",sidebar,.07f,.69f,.93f,.89f,Color.black);
             var previewObject=new GameObject("MultiCardCameraPreview",typeof(RectTransform),typeof(RawImage));
-            previewObject.transform.SetParent(cameraBox,false);
+            var cameraViewport=ArcaneMainMenu.Box("CameraViewport",cameraBox,.09f,.12f,.91f,.88f,Color.clear);
+            previewObject.transform.SetParent(cameraViewport,false);
             var preview=previewObject.GetComponent<RawImage>();preview.raycastTarget=false;preview.enabled=false;
             ArcaneMainMenu.Rect(preview.rectTransform,0,0,1,1);
             var aspect=previewObject.AddComponent<AspectRatioFitter>();aspect.aspectMode=AspectRatioFitter.AspectMode.FitInParent;aspect.aspectRatio=16f/9f;
@@ -67,7 +69,7 @@ namespace CardGame.UI
             ArcaneMainMenu.Action("ConfirmTableLeaveButton",leavePanel.transform,"ANA MENÜ",.52f,.31f,.72f,.40f,()=>SceneManager.LoadSceneAsync(ArcaneMainMenu.SceneName));
             leavePanel.SetActive(false);Restart();
         }
-        private GameObject Overlay(string name,string title,out Text description)
+        private GameObject Overlay(string name,string title,out TMP_Text description)
         {
             var overlay=ArcaneMainMenu.Box(name,canvas,0,0,1,1,new Color(.025f,.03f,.065f,.99f));overlay.GetComponent<Image>().raycastTarget=true;
             ArcaneMainMenu.Label("Title",overlay,title,.15f,.60f,.85f,.73f,35,ArcaneMainMenu.Gold);
@@ -191,13 +193,13 @@ namespace CardGame.UI
         private void CardButton(string name,Transform parent,CardData card,int index,int slots,int hp,int atk,bool selected,Color color,UnityEngine.Events.UnityAction action,bool isHand,string ready)
         {
             float width=.97f/slots,x=.015f+index*width;
-            var button=ArcaneMainMenu.Action(name,parent,"",x,.045f,x+width-.008f,.88f,action);
-            button.GetComponent<Image>().color=selected?new Color(.30f,.25f,.13f):color;
+            var button=ArcaneMainMenu.Action(name,parent,"",x,.045f,x+width-.008f,isHand?.88f:.84f,action);
+            button.GetComponent<Image>().color=selected?new Color(1f,.88f,.62f):Color.white;
             if(selected){var outline=button.gameObject.AddComponent<Outline>();outline.effectColor=ArcaneMainMenu.Gold;outline.effectDistance=new Vector2(2,2);}
-            var rect=button.transform;var art=ArcaneMainMenu.Box("Portrait",rect,.06f,.38f,.94f,.96f,Color.white).GetComponent<Image>();
+            var rect=button.transform;var art=ArcaneMainMenu.Box("Portrait",rect,.06f,.43f,.94f,.96f,Color.white).GetComponent<Image>();
             art.sprite=Portrait(card);art.preserveAspect=true;art.enabled=art.sprite!=null;
-            var label=ArcaneMainMenu.Label("Name",rect,card.cardName,.04f,.21f,.96f,.39f,12,Color.white);label.resizeTextForBestFit=true;label.resizeTextMinSize=8;label.resizeTextMaxSize=12;
-            ArcaneMainMenu.Label("Stats",rect,$"{atk} ATK  /  {hp} CAN",.02f,.025f,.98f,.18f,isHand?12:15,ArcaneMainMenu.Gold);
+            var label=ArcaneMainMenu.Label("Name",rect,card.cardName,.04f,.25f,.96f,.43f,12,Color.white);label.enableAutoSizing=true;label.fontSizeMin=12;label.fontSizeMax=18;
+            ArcaneMainMenu.Label("Stats",rect,$"{atk} ATK  /  {hp} CAN",.04f,.065f,.96f,.22f,isHand?11:13,ArcaneMainMenu.Gold);
             if(isHand)
             {
                 var cost=ArcaneMainMenu.Box("Cost",rect,0,.75f,.30f,1,blue);ArcaneMainMenu.Label("Value",cost,MultiCardMatch.CostOf(card).ToString(),0,0,1,1,17,Color.white);

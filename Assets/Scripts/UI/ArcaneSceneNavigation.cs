@@ -24,8 +24,9 @@ namespace CardGame.UI
         }
         private void Awake()
         {
-            var canvas=ArcaneMainMenu.CreateCanvas("NavigationCanvas",50);canvas.SetParent(transform,false);
-            ArcaneMainMenu.Action("MainMenuButton",canvas,"ANA MENÜ",.86f,.003f,.985f,.037f,()=>confirmation.SetActive(true));
+            var canvas=ArcaneMainMenu.CreateCanvas("NavigationCanvas",50);canvas.SetParent(transform,false);canvas=ArcaneUIFactory.SafeContent(canvas);
+            var menuButton=ArcaneMainMenu.Action("MainMenuButton",canvas,"ANA MENÜ",.86f,.003f,.985f,.052f,()=>confirmation.SetActive(true));
+            var menuLabel=menuButton.GetComponentInChildren<TMPro.TMP_Text>();menuLabel.fontSizeMax=22;menuLabel.fontSizeMin=16;
             confirmation=ArcaneMainMenu.Box("LeaveMatchConfirmation",canvas,0,0,1,1,new Color(0,0,0,.86f)).gameObject;
             confirmation.GetComponent<UnityEngine.UI.Image>().raycastTarget=true;
             var panel=ArcaneMainMenu.Box("Dialog",confirmation.transform,.25f,.30f,.75f,.70f,ArcaneMainMenu.Panel);
