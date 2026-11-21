@@ -39,6 +39,13 @@ namespace CardGame.Core
         public float LastAnalysisTime { get; private set; } = -1;
         public float VisibilityTimeout => Mathf.Max(0.1f, cameraStallTimeout);
 
+        /// <summary>Allows another mode to reuse the same scanner with its own preview.</summary>
+        public void ConfigureDisplay(RawImage preview, bool debugPanel = false)
+        {
+            displayImage = preview;
+            showDebugPanel = debugPanel;
+        }
+
         private WebCamTexture _webCamTex;
         private Color32[] _pixels;
         private byte[] _gray;

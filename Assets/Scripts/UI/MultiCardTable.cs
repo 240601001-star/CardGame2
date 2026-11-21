@@ -13,7 +13,11 @@ namespace CardGame.UI
         public const string SceneName="MultiCardScene";
         public MultiCardMatch Match { get; private set; }
         private Transform canvas,hand,ownBoard,enemyBoard;
-        private Text ownInfo,enemyInfo,turnInfo,status,selection,passText;
+        private Text ownInfo,enemyInfo,turnInfo,status,selection,passText,scanStatus;
+        private WebCamArucoManager scanner;
+        private readonly MultiCardScanGate scanGate=new MultiCardScanGate();
+        private bool scannerBound;
+        private string scanMessage="Önce kamera alanını boşalt.";
         private Button play,draw,endTurn,enemyHero;
         private GameObject passPanel,leavePanel;
         private int selectedHand=-1,selectedAttacker=-1;
@@ -27,7 +31,7 @@ namespace CardGame.UI
             canvas=ArcaneMainMenu.CreateCanvas("MultiCardCanvas",10);canvas.SetParent(transform,false);
             ArcaneMainMenu.Box("Background",canvas,0,0,1,1,ArcaneMainMenu.Ink);
             ArcaneMainMenu.Label("Title",canvas,"ARCANE DUEL  /  ÇOK KARTLI MOD",.025f,.925f,.79f,.99f,25,ArcaneMainMenu.Gold,TextAnchor.MiddleLeft);
-            ArcaneMainMenu.Action("TableMenuButton",canvas,"ANA MENÜ",.82f,.935f,.98f,.985f,()=>leavePanel.SetActive(true));
+            ArcaneMainMenu.Action("TableMenuButton",canvas,"ANA MENÜ",.82f,.935f,.98f,.985f,()=>{scanGate.Lock();leavePanel.SetActive(true);});
             enemyInfo=ArcaneMainMenu.Label("EnemyInfo",canvas,"",.025f,.84f,.48f,.92f,19,Color.white,TextAnchor.MiddleLeft);
             enemyHero=ArcaneMainMenu.Action("EnemyHeroButton",canvas,"RAKİP KAHRAMAN",.51f,.845f,.79f,.915f,()=>AttackTarget(-1));
             enemyBoard=ArcaneMainMenu.Box("EnemyBoard",canvas,.025f,.59f,.79f,.825f,new Color(.14f,.09f,.14f));
@@ -38,14 +42,23 @@ namespace CardGame.UI
             ownInfo=ArcaneMainMenu.Label("OwnInfo",canvas,"",.025f,.25f,.79f,.305f,19,ArcaneMainMenu.Gold,TextAnchor.MiddleLeft);
             hand=ArcaneMainMenu.Box("Hand",canvas,.025f,.025f,.79f,.245f,ArcaneMainMenu.Panel);
             var sidebar=ArcaneMainMenu.Box("Controls",canvas,.815f,.025f,.985f,.92f,ArcaneMainMenu.Panel);
-            turnInfo=ArcaneMainMenu.Label("TurnInfo",sidebar,"",.06f,.84f,.94f,.98f,23,ArcaneMainMenu.Gold);
-            status=ArcaneMainMenu.Label("Status",sidebar,"",.07f,.64f,.93f,.83f,16,Color.white);
-            selection=ArcaneMainMenu.Label("Selection",sidebar,"Bir el kartı seç.",.07f,.41f,.93f,.63f,16,Color.white);
-            play=ArcaneMainMenu.Action("PlayCardButton",sidebar,"KARTI OYNA",.07f,.32f,.93f,.40f,PlaySelected);
-            draw=ArcaneMainMenu.Action("DrawCardButton",sidebar,"KART ÇEK • 1 MANA",.07f,.22f,.93f,.30f,()=>{Match.ExtraDraw();Refresh();});
-            endTurn=ArcaneMainMenu.Action("EndTurnButton",sidebar,"TURU BİTİR",.07f,.11f,.93f,.20f,EndTurn);
-            ArcaneMainMenu.Action("RestartTableButton",sidebar,"YENİ MAÇ",.07f,.025f,.93f,.095f,Restart);
+            turnInfo=ArcaneMainMenu.Label("TurnInfo",sidebar,"",.06f,.90f,.94f,.99f,20,ArcaneMainMenu.Gold);
+            status=ArcaneMainMenu.Label("Status",sidebar,"",.07f,.44f,.93f,.56f,13,Color.white);
+            selection=ArcaneMainMenu.Label("Selection",sidebar,"Bir el kartı seç.",.07f,.30f,.93f,.44f,13,Color.white);
+            play=ArcaneMainMenu.Action("PlayCardButton",sidebar,"KARTI OYNA",.07f,.235f,.93f,.30f,PlaySelected);
+            draw=ArcaneMainMenu.Action("DrawCardButton",sidebar,"KART ÇEK • 1 MANA",.07f,.16f,.93f,.225f,()=>{Match.ExtraDraw();Refresh();});
+            endTurn=ArcaneMainMenu.Action("EndTurnButton",sidebar,"TURU BİTİR",.07f,.085f,.93f,.15f,EndTurn);
+            ArcaneMainMenu.Action("RestartTableButton",sidebar,"YENİ MAÇ",.07f,.015f,.93f,.075f,Restart);
             foreach(var button in new[]{play,draw,endTurn})button.GetComponentInChildren<Text>().fontSize=15;
+            var cameraBox=ArcaneMainMenu.Box("CameraPreviewBox",sidebar,.07f,.69f,.93f,.89f,Color.black);
+            var previewObject=new GameObject("MultiCardCameraPreview",typeof(RectTransform),typeof(RawImage));
+            previewObject.transform.SetParent(cameraBox,false);
+            var preview=previewObject.GetComponent<RawImage>();preview.raycastTarget=false;preview.enabled=false;
+            ArcaneMainMenu.Rect(preview.rectTransform,0,0,1,1);
+            var aspect=previewObject.AddComponent<AspectRatioFitter>();aspect.aspectMode=AspectRatioFitter.AspectMode.FitInParent;aspect.aspectRatio=16f/9f;
+            scanStatus=ArcaneMainMenu.Label("CameraScanStatus",sidebar,"Kamera başlatılıyor…",.07f,.56f,.93f,.69f,12,ArcaneMainMenu.Gold);
+            var cameraObject=new GameObject("MultiCardWebcam");cameraObject.transform.SetParent(transform,false);
+            scanner=cameraObject.AddComponent<WebCamArucoManager>();scanner.ConfigureDisplay(preview);BindScanner();
             passPanel=Overlay("PassPanel","SIRA DİĞER OYUNCUDA",out passText);
             ArcaneMainMenu.Action("ReadyButton",passPanel.transform,"HAZIRIM • ELİMİ GÖSTER",.31f,.31f,.69f,.40f,ConfirmHandoff);
             leavePanel=Overlay("TableLeavePanel","ANA MENÜYE DÖN?",out var leaveText);
@@ -63,7 +76,7 @@ namespace CardGame.UI
         public void Restart()
         {
             Match=new MultiCardMatch(Resources.LoadAll<CardData>("Cards"),Environment.TickCount);
-            selectedHand=selectedAttacker=-1;handoff=false;passPanel.SetActive(false);Refresh();
+            selectedHand=selectedAttacker=-1;handoff=false;scanGate.Lock();scanMessage="Yeni maç: önce kamera alanını boşalt.";passPanel.SetActive(false);Refresh();
         }
         public void SelectHand(int index)
         {
@@ -73,7 +86,7 @@ namespace CardGame.UI
         public void PlaySelected()
         {
             if(handoff)return;
-            if(Match.Play(selectedHand))selectedHand=-1;Refresh();
+            if(Match.Play(selectedHand)){selectedHand=-1;scanGate.Lock();}Refresh();
         }
         public void SelectAttacker(int index)
         {
@@ -83,22 +96,22 @@ namespace CardGame.UI
         public void AttackTarget(int index)
         {
             if(handoff)return;
-            if(Match.Attack(selectedAttacker,index))selectedAttacker=-1;Refresh();
+            if(Match.Attack(selectedAttacker,index)){selectedAttacker=-1;scanGate.Lock();}Refresh();
         }
         public void EndTurn()
         {
             if(handoff||!Match.EndTurn())return;
-            selectedHand=selectedAttacker=-1;handoff=!Match.IsOver;Refresh();
+            selectedHand=selectedAttacker=-1;scanGate.Lock();handoff=!Match.IsOver;Refresh();
             passText.text="Ekranı Oyuncu "+(Match.CurrentPlayer+1)+"'e devret.\nHazır olduğunda elini aç.";passPanel.SetActive(handoff);
         }
-        public void ConfirmHandoff(){handoff=false;passPanel.SetActive(false);Refresh();}
+        public void ConfirmHandoff(){handoff=false;scanGate.Lock();scanMessage="Yeni oyuncu: önce kartı kaldır.";passPanel.SetActive(false);Refresh();}
         public void Refresh()
         {
             var own=Match.GetPlayer(Match.CurrentPlayer);var enemy=Match.GetPlayer(1-Match.CurrentPlayer);
             ownInfo.text=$"OYUNCU {Match.CurrentPlayer+1}   ♥ {own.Health}   •   MANA {own.Mana}/{own.MaxMana}   •   DESTE {own.DeckCount}   •   EL {own.Hand.Count}/10";
             enemyInfo.text=$"OYUNCU {2-Match.CurrentPlayer}   ♥ {enemy.Health}   •   EL {enemy.Hand.Count}   •   DESTE {enemy.DeckCount}";
             turnInfo.text=Match.IsOver?"MAÇ BİTTİ":$"TUR {Match.Turn}\nOYUNCU {Match.CurrentPlayer+1}";
-            status.text=Match.Status;selection.text="El kartı → Oyna\n\nHazır masa kartı → Rakip kart / kahraman";
+            status.text=Match.Status;selection.text="Kartını kameraya göster → Oyna\n\nSaldırganı okut → hedefe tıkla";
             if(selectedHand>=0&&selectedHand<own.Hand.Count)
             {
                 var c=own.Hand[selectedHand];selection.text=$"{c.cardName}\n\n{MultiCardMatch.CostOf(c)} MANA\n{MultiCardMatch.AttackOf(c)} ATK / {MultiCardMatch.HealthOf(c)} CAN";
@@ -122,6 +135,58 @@ namespace CardGame.UI
             play.interactable=!handoff&&Match.CanPlay(selectedHand);
             draw.interactable=!handoff&&Match.CanExtraDraw;endTurn.interactable=!handoff&&!Match.IsOver;
             enemyHero.interactable=!handoff&&!Match.IsOver&&selectedAttacker>=0&&selectedAttacker<own.Board.Count&&own.Board[selectedAttacker].Ready;
+        }
+        private bool CanScan => Match!=null&&!Match.IsOver&&!handoff&&leavePanel!=null&&!leavePanel.activeSelf;
+        private void OnEnable(){BindScanner();}
+        private void BindScanner()
+        {
+            if(scanner==null||scannerBound)return;
+            scanner.OnMarkerDetected+=CameraDetected;scanner.OnMarkerLost+=CameraLost;scanner.OnScanFrameCompleted+=CameraFrame;scannerBound=true;
+        }
+        private void OnDisable()
+        {
+            scanGate.Lock();
+            if(scanner==null||!scannerBound)return;
+            scanner.OnMarkerDetected-=CameraDetected;scanner.OnMarkerLost-=CameraLost;scanner.OnScanFrameCompleted-=CameraFrame;scannerBound=false;
+        }
+        private void CameraDetected(int id,Vector2 position)
+        {
+            if(scanGate.Observe(id,Time.unscaledTime,CanScan))SelectPhysicalCard(id);
+        }
+        private void CameraLost(int id){scanGate.Lost();}
+        private void CameraFrame(int count)
+        {
+            if(!CanScan){scanGate.Lock();return;}
+            bool wasWaiting=scanGate.WaitingForClear;scanGate.Frame(count,Time.unscaledTime);
+            if(wasWaiting&&!scanGate.WaitingForClear)scanMessage="Hazır: elindeki veya hazır masa kartını okut.";
+            if(count>1)scanMessage="Aynı anda yalnızca bir kart göster.";
+        }
+        /// <summary>Selects an owned hand card or board attacker; scanning never spends mana or attacks.</summary>
+        public bool SelectPhysicalCard(int id)
+        {
+            if(!CanScan||id<0||id>49)return false;
+            var own=Match.GetPlayer(Match.CurrentPlayer);
+            for(int i=0;i<own.Hand.Count;i++)if(own.Hand[i].cardID==id)
+            {
+                SelectHand(i);scanMessage="Kart seçildi. Oynamak için KARTI OYNA.";return true;
+            }
+            for(int i=0;i<own.Board.Count;i++)if(own.Board[i].Card.cardID==id&&own.Board[i].Ready)
+            {
+                SelectAttacker(i);scanMessage="Saldırgan seçildi. Rakip kartı veya kahramanı seç.";return true;
+            }
+            scanMessage="Kart aktif oyuncunun elinde değil veya masada hazır değil.";return false;
+        }
+        private void Update()
+        {
+            if(scanner==null||scanStatus==null)return;
+            if(!CanScan){scanGate.Lock();return;}
+            if(!scanner.IsCameraRunning)
+            {
+                scanGate.Lock();scanStatus.text=string.IsNullOrEmpty(scanner.LastError)?"Kamera bekleniyor. Fareyle de oynayabilirsin.":"Kamera kullanılamıyor: "+scanner.LastError;return;
+            }
+            if(scanner.LastAnalysisTime<0||Time.unscaledTime-scanner.LastAnalysisTime>scanner.VisibilityTimeout)
+            {scanGate.Lock();scanStatus.text="Kameradan yeni görüntü bekleniyor.";return;}
+            scanStatus.text=(scanGate.WaitingForClear?"Kartı kaldır; kamera boş kalsın.\n":"Bir kartı sabit göster.\n")+scanMessage;
         }
         private void CardButton(string name,Transform parent,CardData card,int index,int slots,int hp,int atk,bool selected,Color color,UnityEngine.Events.UnityAction action,bool isHand,string ready)
         {
@@ -149,6 +214,6 @@ namespace CardGame.UI
         {
             for(int i=root.childCount-1;i>=0;i--){var go=root.GetChild(i).gameObject;go.SetActive(false);if(Application.isPlaying)Destroy(go);else DestroyImmediate(go);}
         }
-        private void OnDestroy(){foreach(var sprite in portraits.Values){if(Application.isPlaying)Destroy(sprite);else DestroyImmediate(sprite);}}
+        private void OnDestroy(){OnDisable();foreach(var sprite in portraits.Values){if(Application.isPlaying)Destroy(sprite);else DestroyImmediate(sprite);}}
     }
 }
