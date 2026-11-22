@@ -26,11 +26,21 @@ namespace CardGame.Core
             public CardHand Hand { get; } = new CardHand();
             internal readonly Queue<CardData> Deck = new Queue<CardData>();
             internal readonly List<Unit> Units = new List<Unit>();
-            public int DeckCount => Deck.Count;
+            internal readonly Dictionary<int,CardData> RemainingPhysical = new Dictionary<int,CardData>();
+            internal readonly List<CardData> Discarded = new List<CardData>();
+            internal bool Physical;
+            public IReadOnlyList<CardData> Discard => Discarded.AsReadOnly();
+            public int DeckCount => Physical?RemainingPhysical.Count:Deck.Count;
             public IReadOnlyList<Unit> Board => Units.AsReadOnly();
         }
         private readonly Player[] players = { new Player(), new Player() };
         private bool extraDrawUsed;
+        public bool PhysicalMode { get; private set; }
+        public bool OpeningHands { get; private set; }
+        public int PendingDrawCount { get; private set; }
+        public CardData LastPhysicalDraw { get; private set; }
+        public bool LastDrawBurned { get; private set; }
+        public bool CanAct => !IsOver&&!OpeningHands&&PendingDrawCount==0;
         public int CurrentPlayer { get; private set; }
         public int Turn { get; private set; }
         public bool IsOver { get; private set; }
@@ -54,10 +64,45 @@ namespace CardGame.Core
             }
             BeginTurn();
         }
+        private MultiCardMatch(){ }
+        public static MultiCardMatch CreatePhysical(IEnumerable<CardData> first,IEnumerable<CardData> second)
+        {
+            var match=new MultiCardMatch();var used=new HashSet<int>();var decks=new[]{first,second};
+            for(int p=0;p<2;p++)
+            {
+                var cards=decks[p].ToList();
+                if(cards.Count!=PhysicalDeckRegistry.DeckSize)throw new ArgumentException("Her deste 20 kart içermeli.");
+                match.players[p].Physical=true;
+                foreach(var card in cards)
+                {
+                    if(card==null||card.cardID<0||card.cardID>49||!used.Add(card.cardID))throw new ArgumentException("Fiziksel kart ID'leri iki destede de tekil olmalı.");
+                    match.players[p].RemainingPhysical.Add(card.cardID,card);
+                }
+            }
+            // Preserve the existing 3 starting cards + first turn draw for player 1.
+            match.PhysicalMode=true;match.OpeningHands=true;match.CurrentPlayer=0;match.PendingDrawCount=4;
+            match.Status="Oyuncu 1: fiziksel destenden 4 kart çek; tek tek okut.";return match;
+        }
+        public bool AcceptPhysicalDraw(int id)
+        {
+            if(!PhysicalMode||IsOver||PendingDrawCount<=0)return Reject("Şu anda kart çekme adımı yok.");
+            var player=players[CurrentPlayer];
+            if(!player.RemainingPhysical.TryGetValue(id,out var card))return Reject("Bu kart çekilebilir destende değil; başka oyuncuya ait veya zaten çekilmiş.");
+            player.RemainingPhysical.Remove(id);PendingDrawCount--;LastPhysicalDraw=card;
+            LastDrawBurned=!player.Hand.TryAdd(card);
+            if(LastDrawBurned)player.Discarded.Add(card);
+            Status=LastDrawBurned?card.cardName+": el dolu, kartı kullanılmış yığınına ayır.":card.cardName+" eline eklendi. Kartı kameradan kaldır.";
+            if(OpeningHands&&PendingDrawCount==0)
+            {
+                if(CurrentPlayer==0){CurrentPlayer=1;PendingDrawCount=3;Status="Oyuncu 2: fiziksel destenden 3 kart çek; tek tek okut.";}
+                else{OpeningHands=false;CurrentPlayer=0;BeginTurn(false);}
+            }
+            return true;
+        }
         public bool CanPlay(int handIndex)
         {
             var p=players[CurrentPlayer];
-            return !IsOver&&handIndex>=0&&handIndex<p.Hand.Count&&p.Units.Count<BoardLimit&&CostOf(p.Hand[handIndex])<=p.Mana;
+            return CanAct&&handIndex>=0&&handIndex<p.Hand.Count&&p.Units.Count<BoardLimit&&CostOf(p.Hand[handIndex])<=p.Mana;
         }
         public bool Play(int handIndex)
         {
@@ -67,22 +112,22 @@ namespace CardGame.Core
         }
         public bool ExtraDraw()
         {
-            if(IsOver||extraDrawUsed||players[CurrentPlayer].Mana<1)return Reject("Ek çekim turda bir kez, 1 mana karşılığında kullanılabilir.");
+            if(!CanAct||extraDrawUsed||players[CurrentPlayer].Mana<1)return Reject("Ek çekim turda bir kez, 1 mana karşılığında kullanılabilir.");
             players[CurrentPlayer].Mana--;extraDrawUsed=true;Draw(CurrentPlayer);return true;
         }
-        public bool CanExtraDraw => !IsOver&&!extraDrawUsed&&players[CurrentPlayer].Mana>0;
+        public bool CanExtraDraw => CanAct&&!extraDrawUsed&&players[CurrentPlayer].Mana>0;
         public bool Attack(int attackerIndex,int targetIndex)
         {
             var own=players[CurrentPlayer];var enemy=players[1-CurrentPlayer];
-            if(IsOver||attackerIndex<0||attackerIndex>=own.Units.Count||!own.Units[attackerIndex].Ready||targetIndex< -1||targetIndex>=enemy.Units.Count)
+            if(!CanAct||attackerIndex<0||attackerIndex>=own.Units.Count||!own.Units[attackerIndex].Ready||targetIndex< -1||targetIndex>=enemy.Units.Count)
                 return Reject("Hazır bir kart ve geçerli bir hedef seç.");
             var attacker=own.Units[attackerIndex];attacker.Ready=false;
             if(targetIndex==-1){enemy.Health=Math.Max(0,enemy.Health-attacker.Attack);Status="Rakip kahramana "+attacker.Attack+" hasar.";}
             else
             {
                 var target=enemy.Units[targetIndex];target.Health-=attacker.Attack;attacker.Health-=target.Attack;
-                if(target.Health<=0)enemy.Units.Remove(target);
-                if(attacker.Health<=0)own.Units.Remove(attacker);
+                if(target.Health<=0){enemy.Units.Remove(target);enemy.Discarded.Add(target.Card);}
+                if(attacker.Health<=0){own.Units.Remove(attacker);own.Discarded.Add(attacker.Card);}
                 Status="Kartlar aynı anda hasar verdi.";
             }
             CheckWinner();return true;
@@ -90,18 +135,20 @@ namespace CardGame.Core
         public bool EndTurn()
         {
             if(IsOver)return false;
+            if(!CanAct)return Reject("Önce bekleyen fiziksel kartları okut.");
             CurrentPlayer=1-CurrentPlayer;BeginTurn();return true;
         }
-        private void BeginTurn()
+        private void BeginTurn(bool drawCard=true)
         {
             Turn++;var p=players[CurrentPlayer];p.MaxMana=Math.Min(10,p.MaxMana+1);p.Mana=p.MaxMana;
             foreach(var unit in p.Units)unit.Ready=true;
-            extraDrawUsed=false;Status="Oyuncu "+(CurrentPlayer+1)+": kart oyna veya saldır.";Draw(CurrentPlayer);
+            extraDrawUsed=false;Status="Oyuncu "+(CurrentPlayer+1)+": kart oyna veya saldır.";if(drawCard)Draw(CurrentPlayer);
         }
         private void Draw(int player)
         {
             var p=players[player];
-            if(p.Deck.Count==0){p.Health=Math.Max(0,p.Health-++p.Fatigue);Status="Deste boş: "+p.Fatigue+" yorgunluk hasarı.";CheckWinner();return;}
+            if(p.DeckCount==0){p.Health=Math.Max(0,p.Health-++p.Fatigue);Status="Deste boş: "+p.Fatigue+" yorgunluk hasarı.";CheckWinner();return;}
+            if(PhysicalMode){PendingDrawCount=1;LastPhysicalDraw=null;LastDrawBurned=false;Status="Destenden 1 fiziksel kart çek ve okut.";return;}
             if(!p.Hand.TryAdd(p.Deck.Dequeue()))Status="El dolu: çekilen kart yakıldı.";
         }
         private void CheckWinner()
