@@ -52,6 +52,26 @@ namespace CardGame.UI
         [SerializeField] private TMP_Text handoffText,player1ScoreText,player2ScoreText,scannerCaption;
         [SerializeField] private GameObject tacticGuidePanel;
         private GameManager _game;
+        private ArcaneUIFeedback feedback;
+        private int feedbackRound=-1,feedbackExchange=-1;
+        private readonly int[] previousHP=new int[2];
+        private void RefreshFeedback()
+        {
+            if(!Application.isPlaying)return;
+            var left=cardIconImage!=null?cardIconImage.GetComponentInParent<ArcaneCardView>():null;
+            var right=player2CardImage!=null?player2CardImage.GetComponentInParent<ArcaneCardView>():null;
+            if(left==null||right==null)return;
+            if(feedback==null)feedback=left.transform.parent.gameObject.AddComponent<ArcaneUIFeedback>();
+            if(!_game.CardsRevealed){feedback.Clear();feedbackRound=-1;feedbackExchange=-1;return;}
+            int hp1=_game.GetPlayerHP(0),hp2=_game.GetPlayerHP(1);
+            if(feedbackRound==_game.CurrentRound&&_game.ExchangeNumber>feedbackExchange)
+            {
+                Vector3 a=ArcaneUIFeedback.Center(left.artwork.transform),b=ArcaneUIFeedback.Center(right.artwork.transform);
+                if(previousHP[0]>hp1){feedback.Strike(b,a);feedback.Damage(previousHP[0]-hp1,a);}
+                if(previousHP[1]>hp2){feedback.Strike(a,b);feedback.Damage(previousHP[1]-hp2,b);}
+            }
+            feedbackRound=_game.CurrentRound;feedbackExchange=_game.ExchangeNumber;previousHP[0]=hp1;previousHP[1]=hp2;
+        }
 
         private void OnEnable() { Bind(); Refresh(); }
         private void Start()
@@ -77,7 +97,7 @@ namespace CardGame.UI
             if (_game != null) _game.OnDuelChanged -= Refresh;
             _game = null;
         }
-        private void OnDisable() { Unbind(); }
+        private void OnDisable() { if(feedback!=null)feedback.Clear();Unbind(); }
         private void OnDestroy()
         {
             Unbind();
@@ -144,6 +164,7 @@ namespace CardGame.UI
                 $"   •   {_game.Score.Player1} – {_game.Score.Player2}\n{_game.StatusMessage}");
             Set(player1DeckText, DeckSummary(0));
             Set(player2DeckText, DeckSummary(1));
+            RefreshFeedback();
         }
         private void ShowCard(int player, Image image, TMP_Text nameText, TMP_Text stats, TMP_Text tacticText, Slider bar, TMP_Text hpText)
         {
