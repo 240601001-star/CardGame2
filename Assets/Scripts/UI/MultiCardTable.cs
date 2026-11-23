@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using CardGame.Core;
@@ -19,6 +19,8 @@ namespace CardGame.UI
         private WebCamArucoManager scanner;
         private readonly MultiCardScanGate scanGate=new MultiCardScanGate();
         private bool scannerBound;
+        private readonly MultiCardBulkScanGate bulkGate=new MultiCardBulkScanGate();
+        private string bulkMessage="Önce kamera alanını boşalt.";
         private string scanMessage="Önce kamera alanını boşalt.";
         private Button play,draw,endTurn,enemyHero;
         private GameObject passPanel,leavePanel;
@@ -96,7 +98,7 @@ namespace CardGame.UI
             var root=setupPanel.transform;
             setupHeading=ArcaneMainMenu.Label("SetupHeading",root,"DESTE KAYDI",.055f,.82f,.75f,.96f,30,ArcaneMainMenu.Gold);
             setupCount=ArcaneMainMenu.Label("SetupCount",root,"0 / 20",.76f,.82f,.945f,.96f,28,ArcaneMainMenu.Gold);
-            setupHelp=ArcaneMainMenu.Label("SetupHelp",root,"Her oyuncu 20 farklı kart kaydeder. Kamera alanında tek kart olsun.\nAynı kart iki desteye eklenemez. Kayıttan sonra fiziksel olarak karıştırın.",.055f,.69f,.945f,.81f,17,Color.white);
+            setupHelp=ArcaneMainMenu.Label("SetupHelp",root,"Her oyuncu 20 farklı kart kaydeder. Kartları birlikte göster.\nAynı kart iki desteye eklenemez. Kayıttan sonra fiziksel olarak karıştırın.",.055f,.69f,.945f,.81f,17,Color.white);
             setupLeft=ArcaneMainMenu.Label("SetupCardsLeft",root,"",.055f,.24f,.48f,.68f,20,Color.white,TextAnchor.UpperLeft);
             setupRight=ArcaneMainMenu.Label("SetupCardsRight",root,"",.52f,.24f,.945f,.68f,20,Color.white,TextAnchor.UpperLeft);
             setupMessage=ArcaneMainMenu.Label("SetupMessage",root,"",.055f,.15f,.945f,.23f,18,ArcaneMainMenu.Gold);
@@ -120,12 +122,12 @@ namespace CardGame.UI
             setupPanel.SetActive(!handoff);setupHeading.text="OYUNCU "+(deckRegistry.CurrentPlayer+1)+" · DESTE KAYDI";
             setupCount.text=deckRegistry.Count+" / "+PhysicalDeckRegistry.DeckSize;
             var cards=deckRegistry.GetDeck(deckRegistry.CurrentPlayer);
-            setupLeft.text=cards.Count==0?"Henüz kart kaydedilmedi.":DeckNames(cards,0,10);setupRight.text=DeckNames(cards,10,10);setupMessage.text=deckRegistry.Status;
+            setupLeft.text=cards.Count==0?"Henüz kart kaydedilmedi.":DeckNames(cards,0,10);setupRight.text=DeckNames(cards,10,10);setupMessage.text=bulkMessage;
             double average=cards.Count==0?0:cards.Average(c=>MultiCardMatch.CostOf(c));int cheap=cards.Count(c=>MultiCardMatch.CostOf(c)<=MultiCardRules.StartingMana);
-            setupHelp.text="20 farklı kartı tek tek okut. Aynı kart iki desteye eklenemez.\nKayıttan sonra fiziksel olarak karıştır.\nMana ortalaması: "+average.ToString("F1")+" · "+MultiCardRules.StartingMana+" ve altı: "+cheap+" kart. Ucuz ve pahalı kartları karıştır.";
+            setupHelp.text="Kartları birlikte göster veya kamerayı masada gezdir. Aynı kart iki desteye eklenemez.\nKayıttan sonra fiziksel olarak karıştır.\nMana ortalaması: "+average.ToString("F1")+" · "+MultiCardRules.StartingMana+" ve altı: "+cheap+" kart. Ucuz ve pahalı kartları karıştır.";
             confirmDeck.interactable=deckRegistry.CanConfirm&&!handoff;undoDeck.interactable=cards.Count>0&&!handoff;
-            ownInfo.text="Destendeki kartları tek tek okut. Her karttan sonra kamera boş kalsın.";enemyInfo.text="DESTE KAYDI · 20 FARKLI KART";
-            turnInfo.text="OYUNCU "+(deckRegistry.CurrentPlayer+1);status.text="Fiziksel desteni kaydet.";selection.text="Kartları kendi seçtiğin sırayla kaydet.\nKaydın ardından fiziksel olarak karıştır.";
+            ownInfo.text="TOPLU TARAMA · Kartlar ve ArUco işaretleri birbirini kapatmasın.";enemyInfo.text="DESTE KAYDI · 20 FARKLI KART";
+            turnInfo.text="OYUNCU "+(deckRegistry.CurrentPlayer+1);status.text="Fiziksel desteni kaydet.";selection.text="20 kart tamamlanınca DESTENİ KAYDET.\nArdından fiziksel desteni karıştır.";
             play.interactable=draw.interactable=endTurn.interactable=enemyHero.interactable=discardButton.interactable=false;
             ArcaneUIHighlight.Show(enemyHero.gameObject,ArcaneUIHighlight.Kind.None);
             Clear(hand);Clear(ownBoard);Clear(enemyBoard);ownViews.Clear();enemyViews.Clear();
@@ -157,6 +159,7 @@ namespace CardGame.UI
         public void ResetDecks()
         {
             if(feedback!=null)feedback.Clear();
+            bulkGate.Reset();bulkMessage="Önce kamera alanını boşalt; ardından kartları birlikte göster.";
             deckRegistry=new PhysicalDeckRegistry(Resources.LoadAll<CardData>("Cards"));Match=null;
             selectedHand=selectedAttacker=-1;handoff=false;scanGate.Lock();scanMessage="Önce kamerayı boşalt; sonra destendeki ilk kartı okut.";
             passPanel.SetActive(false);discardPanel.SetActive(false);deckResetPanel.SetActive(false);rulesPanel.SetActive(false);Refresh();
@@ -180,7 +183,7 @@ namespace CardGame.UI
         public void UndoRegisteredCard()
         {
             if(Match!=null||handoff||ModalOpen)return;
-            deckRegistry.UndoLast();scanGate.Lock();Refresh();
+            deckRegistry.UndoLast();bulkMessage="Son kart kaldırıldı. Yeniden eklemek için görüntüden çıkarıp tekrar göster.";scanGate.Lock();Refresh();
         }
         public void RequestExtraDraw()
         {
@@ -277,21 +280,46 @@ namespace CardGame.UI
         private void BindScanner()
         {
             if(scanner==null||scannerBound)return;
-            scanner.OnMarkerDetected+=CameraDetected;scanner.OnMarkerLost+=CameraLost;scanner.OnScanFrameCompleted+=CameraFrame;scannerBound=true;
+            scanner.OnMarkersFrameCompleted+=CameraBulkFrame;scanner.OnMarkerDetected+=CameraDetected;scanner.OnMarkerLost+=CameraLost;scanner.OnScanFrameCompleted+=CameraFrame;scannerBound=true;
         }
         private void OnDisable()
         {
-            if(feedback!=null)feedback.Clear();scanGate.Lock();
+            if(feedback!=null)feedback.Clear();scanGate.Lock();bulkGate.Reset();
             if(scanner==null||!scannerBound)return;
-            scanner.OnMarkerDetected-=CameraDetected;scanner.OnMarkerLost-=CameraLost;scanner.OnScanFrameCompleted-=CameraFrame;scannerBound=false;
+            scanner.OnMarkersFrameCompleted-=CameraBulkFrame;scanner.OnMarkerDetected-=CameraDetected;scanner.OnMarkerLost-=CameraLost;scanner.OnScanFrameCompleted-=CameraFrame;scannerBound=false;
+        }
+        // Batch input is only consumed during deck registration, never during a match.
+        private void CameraBulkFrame(IReadOnlyList<int> ids)
+        { ProcessBulkFrame(ids,Time.unscaledTime); }
+        public int ProcessBulkFrame(IReadOnlyList<int> ids,float now)
+        {
+            if(Match!=null||!CanScan){bulkGate.Reset();return 0;}
+            bool wasWaiting=bulkGate.WaitingForClear;
+            var ready=bulkGate.Frame(ids,now);
+            bool armed=wasWaiting&&!bulkGate.WaitingForClear;
+            if(armed)bulkMessage="Hazır: kartları birlikte sabit göster veya kamerayı masada gezdir.";
+            var ownIDs=new HashSet<int>(deckRegistry.GetDeck(deckRegistry.CurrentPlayer).Select(c=>c.cardID));
+            var otherIDs=new HashSet<int>(deckRegistry.GetDeck(1-deckRegistry.CurrentPlayer).Select(c=>c.cardID));
+            var candidates=ready.Where(id=>!ownIDs.Contains(id)&&!otherIDs.Contains(id)).ToArray();
+            int free=PhysicalDeckRegistry.DeckSize-deckRegistry.Count;
+            if(candidates.Length>free){bulkMessage="Fazla kart görünüyor: "+free+" yer kaldı. Fazla kartları çıkarıp kalanları tekrar göster.";Refresh();return 0;}
+            int added=0;
+            foreach(int id in candidates)if(deckRegistry.Register(id))added++;
+            if(ready.Any(id=>otherIDs.Contains(id)))bulkMessage="Diğer oyuncunun kartları eklenmedi. Kendi desteni göster.";
+            else if(added>0)bulkMessage=added+" yeni kart eklendi · "+deckRegistry.Count+" / 20"+(deckRegistry.CanConfirm?" · DESTENİ KAYDET.":" · Diğer kartları göster.");
+            else if(bulkGate.WaitingForClear)bulkMessage="Önce kamera alanını boşalt.";
+            else if(ready.Count>0)bulkMessage=deckRegistry.CanConfirm?"20 kart hazır · DESTENİ KAYDET.":"Görünen kartlar zaten kayıtlı. Diğer kartları göster.";
+            if(added>0||ready.Count>0||armed)Refresh();
+            return added;
         }
         private void CameraDetected(int id,Vector2 position)
         {
-            if(scanGate.Observe(id,Time.unscaledTime,CanScan))SelectPhysicalCard(id);
+            if(Match!=null&&scanGate.Observe(id,Time.unscaledTime,CanScan))SelectPhysicalCard(id);
         }
         private void CameraLost(int id){scanGate.Lost();}
         private void CameraFrame(int count)
         {
+            if(Match==null)return;
             if(!CanScan){scanGate.Lock();return;}
             bool wasWaiting=scanGate.WaitingForClear;scanGate.Frame(count,Time.unscaledTime);
             if(wasWaiting&&!scanGate.WaitingForClear)scanMessage=Match==null?"Hazır: destene kaydedeceğin bir kartı okut.":Match.PendingDrawCount>0?"Hazır: desteden çektiğin kartı okut.":"Hazır: elindeki veya hazır masa kartını okut.";
@@ -303,7 +331,7 @@ namespace CardGame.UI
             if(!CanScan||id<0||id>49)return false;
             if(Match==null)
             {
-                bool registered=deckRegistry.Register(id);scanMessage=deckRegistry.Status;Refresh();return registered;
+                bool registered=deckRegistry.Register(id);bulkMessage=scanMessage=deckRegistry.Status;Refresh();return registered;
             }
             if(Match.PendingDrawCount>0)
             {
@@ -332,13 +360,15 @@ namespace CardGame.UI
         private void Update()
         {
             if(scanner==null||scanStatus==null)return;
-            if(!CanScan){scanGate.Lock();return;}
+            scanner.BulkRegistrationMode=Match==null&&CanScan;
+            if(!CanScan){scanGate.Lock();bulkGate.Reset();return;}
             if(!scanner.IsCameraRunning)
             {
-                scanGate.Lock();scanStatus.text=string.IsNullOrEmpty(scanner.LastError)?"Kamera bekleniyor. Deste kaydı ve kart çekimi için webcam gerekli.":"Kamera kullanılamıyor: "+scanner.LastError;return;
+                bulkGate.Reset();scanGate.Lock();scanStatus.text=string.IsNullOrEmpty(scanner.LastError)?"Kamera bekleniyor. Deste kaydı ve kart çekimi için webcam gerekli.":"Kamera kullanılamıyor: "+scanner.LastError;return;
             }
             if(scanner.LastAnalysisTime<0||Time.unscaledTime-scanner.LastAnalysisTime>scanner.VisibilityTimeout)
-            {scanGate.Lock();scanStatus.text="Kameradan yeni görüntü bekleniyor.";return;}
+            {bulkGate.Reset();scanGate.Lock();scanStatus.text="Kameradan yeni görüntü bekleniyor.";return;}
+            if(Match==null){scanStatus.text=(bulkGate.WaitingForClear?"Kamera alanını boşalt.\n":"TOPLU TARAMA · "+deckRegistry.Count+" / 20\n")+bulkMessage;return;}
             scanStatus.text=(scanGate.WaitingForClear?"Kartı kaldır; kamera boş kalsın.\n":"Bir kartı sabit göster.\n")+scanMessage;
         }
         private Button CardButton(string name,Transform parent,CardData card,int index,int slots,int hp,int atk,bool selected,Color color,UnityEngine.Events.UnityAction action,bool isHand,string ready)

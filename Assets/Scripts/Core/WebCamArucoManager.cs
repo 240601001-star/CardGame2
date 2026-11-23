@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -32,6 +32,10 @@ namespace CardGame.Core
         public event Action<int> OnMarkerLost;
         /// <summary>Only emitted for a newly analyzed camera frame; count may be 0, 1 or multiple.</summary>
         public event Action<int> OnScanFrameCompleted;
+        /// <summary>Every exact ID in a fresh analyzed frame. Single-card events keep their original behavior.</summary>
+        public event Action<IReadOnlyList<int>> OnMarkersFrameCompleted;
+        public bool BulkRegistrationMode { get; set; }
+        private readonly List<int> frameIDs = new List<int>();
         public bool IsCameraRunning => _webCamTex != null && _webCamTex.isPlaying;
         public int DetectedMarkerID { get; private set; } = -1;
         public string ValidationStatus { get; private set; } = "Waiting for camera";
@@ -128,7 +132,7 @@ namespace CardGame.Core
         {
             int srcW = _webCamTex.width, srcH = _webCamTex.height;
             if (srcW < 32 || srcH < 32) { InvalidateDetection(); return; }
-            int w = Mathf.Clamp(analysisSize, 160, srcW);
+            int w = Mathf.Clamp(BulkRegistrationMode ? Mathf.Max(analysisSize, 1280) : analysisSize, 160, srcW);
             int h = Mathf.Max(12, Mathf.RoundToInt((float)w * srcH / srcW));
             if (_pixels == null || _pixels.Length != srcW * srcH) _pixels = new Color32[srcW * srcH];
             if (_gray == null || _gray.Length != w * h) _gray = new byte[w * h];
@@ -145,6 +149,9 @@ namespace CardGame.Core
             _detector.Detect(_gray, w, h, Mathf.Max(3, adaptiveBlockSize) | 1, adaptiveC,
                 Mathf.Max(50, minContourArea), Mathf.Clamp(maxContourAreaFraction, 0.01f, 0.9f), _detections);
             LastAnalysisTime = Time.unscaledTime;
+            frameIDs.Clear();
+            foreach (var found in _detections) frameIDs.Add(found.ID);
+            OnMarkersFrameCompleted?.Invoke(frameIDs.AsReadOnly());
             if (_detections.Count != 1)
             {
                 ValidationStatus = _detections.Count == 0 ? "No valid marker (exact match required)" : "Multiple markers: scan one card";

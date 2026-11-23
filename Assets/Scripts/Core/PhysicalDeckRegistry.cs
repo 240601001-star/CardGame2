@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using CardGame.Data;
 
@@ -12,7 +12,7 @@ namespace CardGame.Core
         private readonly List<CardData>[] decks={new List<CardData>(),new List<CardData>()};
         public int CurrentPlayer { get; private set; }
         public bool IsComplete { get; private set; }
-        public string Status { get; private set; }="Oyuncu 1: destendeki kartları tek tek okut.";
+        public string Status { get; private set; }="Oyuncu 1: kartlarını gruplar hâlinde göster.";
         public int Count => decks[CurrentPlayer].Count;
         public bool CanConfirm => !IsComplete&&Count==DeckSize;
         public IReadOnlyList<CardData> GetDeck(int player)=>decks[player].AsReadOnly();
@@ -25,7 +25,7 @@ namespace CardGame.Core
             if(decks[CurrentPlayer].Any(c=>c.cardID==id))return Reject("Bu kart zaten destende kayıtlı.");
             if(decks[1-CurrentPlayer].Any(c=>c.cardID==id))return Reject("Bu kart diğer oyuncunun destesinde kayıtlı.");
             if(Count>=DeckSize)return Reject("20 kart tamamlandı. Desteyi kaydet düğmesine bas.");
-            decks[CurrentPlayer].Add(card);Status=card.cardName+" kaydedildi. Kartı kaldır, sıradakini okut.";return true;
+            decks[CurrentPlayer].Add(card);Status=card.cardName+" kaydedildi. Diğer kartları birlikte gösterebilirsin.";return true;
         }
         public bool UndoLast()
         {
@@ -35,7 +35,7 @@ namespace CardGame.Core
         public bool Confirm()
         {
             if(!CanConfirm)return Reject("Her oyuncu 20 farklı kart kaydetmeli.");
-            if(CurrentPlayer==0){CurrentPlayer=1;Status="Oyuncu 2: kendi 20 kartını tek tek okut.";}
+            if(CurrentPlayer==0){CurrentPlayer=1;Status="Oyuncu 2: kendi 20 kartını gruplar hâlinde göster.";}
             else{IsComplete=true;Status="Desteleri fiziksel olarak karıştırın.";}
             return true;
         }
