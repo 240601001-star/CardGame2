@@ -19,9 +19,9 @@ namespace CardGame.Core
         }
         public sealed class Player
         {
-            public int Health { get; internal set; } = 30;
+            public int Health { get; internal set; } = MultiCardRules.HeroHealth;
             public int Mana { get; internal set; }
-            public int MaxMana { get; internal set; } = 2;
+            public int MaxMana { get; internal set; } = MultiCardRules.StartingMana-1;
             public int Fatigue { get; internal set; }
             public CardHand Hand { get; } = new CardHand();
             internal readonly Queue<CardData> Deck = new Queue<CardData>();
@@ -47,9 +47,9 @@ namespace CardGame.Core
         public int Winner { get; private set; } = -1;
         public string Status { get; private set; }
         public Player GetPlayer(int index) => players[index];
-        public static int AttackOf(CardData card) => Math.Max(1,(card.attackPower+19)/20);
-        public static int HealthOf(CardData card) => Math.Max(1,(card.health+29)/30);
-        public static int CostOf(CardData card) => card.manaCost>0 ? Math.Min(10,card.manaCost) : Math.Min(10,(AttackOf(card)+HealthOf(card)+1)/3);
+        public static int AttackOf(CardData card) => card.attackPower;
+        public static int HealthOf(CardData card) => card.health;
+        public static int CostOf(CardData card) => MultiCardRules.ManaCost(card);
 
         public MultiCardMatch(IEnumerable<CardData> cards,int seed)
         {
@@ -59,8 +59,9 @@ namespace CardGame.Core
             for(int i=pool.Count-1;i>0;i--){int j=random.Next(i+1);var temp=pool[i];pool[i]=pool[j];pool[j]=temp;}
             for(int p=0;p<2;p++)
             {
+                players[p].MaxMana=(p==0?MultiCardRules.StartingMana:MultiCardRules.SecondStartingMana)-1;
                 for(int i=0;i<20;i++)players[p].Deck.Enqueue(pool[(i*2+p)%pool.Count]);
-                for(int i=0;i<3;i++)Draw(p);
+                for(int i=0;i<(p==0?MultiCardRules.FirstOpeningCards-1:MultiCardRules.SecondOpeningCards);i++)Draw(p);
             }
             BeginTurn();
         }
@@ -72,16 +73,16 @@ namespace CardGame.Core
             {
                 var cards=decks[p].ToList();
                 if(cards.Count!=PhysicalDeckRegistry.DeckSize)throw new ArgumentException("Her deste 20 kart içermeli.");
-                match.players[p].Physical=true;
+                match.players[p].Physical=true;match.players[p].MaxMana=(p==0?MultiCardRules.StartingMana:MultiCardRules.SecondStartingMana)-1;
                 foreach(var card in cards)
                 {
                     if(card==null||card.cardID<0||card.cardID>49||!used.Add(card.cardID))throw new ArgumentException("Fiziksel kart ID'leri iki destede de tekil olmalı.");
                     match.players[p].RemainingPhysical.Add(card.cardID,card);
                 }
             }
-            // Preserve the existing 3 starting cards + first turn draw for player 1.
-            match.PhysicalMode=true;match.OpeningHands=true;match.CurrentPlayer=0;match.PendingDrawCount=4;
-            match.Status="Oyuncu 1: fiziksel destenden 4 kart çek; tek tek okut.";return match;
+            // Opening draws are physical. Player 2 gets a normal turn draw after the shared opening.
+            match.PhysicalMode=true;match.OpeningHands=true;match.CurrentPlayer=0;match.PendingDrawCount=MultiCardRules.FirstOpeningCards;
+            match.Status="Oyuncu 1: fiziksel destenden "+MultiCardRules.FirstOpeningCards+" kart çek; tek tek okut.";return match;
         }
         public bool AcceptPhysicalDraw(int id)
         {
@@ -94,7 +95,7 @@ namespace CardGame.Core
             Status=LastDrawBurned?card.cardName+": el dolu, kartı kullanılmış yığınına ayır.":card.cardName+" eline eklendi. Kartı kameradan kaldır.";
             if(OpeningHands&&PendingDrawCount==0)
             {
-                if(CurrentPlayer==0){CurrentPlayer=1;PendingDrawCount=3;Status="Oyuncu 2: fiziksel destenden 3 kart çek; tek tek okut.";}
+                if(CurrentPlayer==0){CurrentPlayer=1;PendingDrawCount=MultiCardRules.SecondOpeningCards;Status="Oyuncu 2: fiziksel destenden "+MultiCardRules.SecondOpeningCards+" kart çek; tek tek okut.";}
                 else{OpeningHands=false;CurrentPlayer=0;BeginTurn(false);}
             }
             return true;
@@ -116,6 +117,11 @@ namespace CardGame.Core
             players[CurrentPlayer].Mana--;extraDrawUsed=true;Draw(CurrentPlayer);return true;
         }
         public bool CanExtraDraw => CanAct&&!extraDrawUsed&&players[CurrentPlayer].Mana>0;
+        public bool CanAttackHero(int attackerIndex)
+        {
+            var own=players[CurrentPlayer];
+            return CanAct&&attackerIndex>=0&&attackerIndex<own.Units.Count&&own.Units[attackerIndex].Ready;
+        }
         public bool Attack(int attackerIndex,int targetIndex)
         {
             var own=players[CurrentPlayer];var enemy=players[1-CurrentPlayer];
@@ -140,14 +146,14 @@ namespace CardGame.Core
         }
         private void BeginTurn(bool drawCard=true)
         {
-            Turn++;var p=players[CurrentPlayer];p.MaxMana=Math.Min(10,p.MaxMana+1);p.Mana=p.MaxMana;
+            Turn++;var p=players[CurrentPlayer];p.MaxMana=Math.Min(MultiCardRules.MaximumMana,p.MaxMana+1);p.Mana=p.MaxMana;
             foreach(var unit in p.Units)unit.Ready=true;
             extraDrawUsed=false;Status="Oyuncu "+(CurrentPlayer+1)+": kart oyna veya saldır.";if(drawCard)Draw(CurrentPlayer);
         }
         private void Draw(int player)
         {
             var p=players[player];
-            if(p.DeckCount==0){p.Health=Math.Max(0,p.Health-++p.Fatigue);Status="Deste boş: "+p.Fatigue+" yorgunluk hasarı.";CheckWinner();return;}
+            if(p.DeckCount==0){p.Fatigue++;int damage=p.Fatigue*MultiCardRules.FatigueStep;p.Health=Math.Max(0,p.Health-damage);Status="Deste boş: "+damage+" yorgunluk hasarı.";CheckWinner();return;}
             if(PhysicalMode){PendingDrawCount=1;LastPhysicalDraw=null;LastDrawBurned=false;Status="Destenden 1 fiziksel kart çek ve okut.";return;}
             if(!p.Hand.TryAdd(p.Deck.Dequeue()))Status="El dolu: çekilen kart yakıldı.";
         }

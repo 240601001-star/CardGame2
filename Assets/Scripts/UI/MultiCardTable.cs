@@ -25,11 +25,11 @@ namespace CardGame.UI
         private int selectedHand=-1,selectedAttacker=-1;
         private bool handoff;
         private PhysicalDeckRegistry deckRegistry;
-        private GameObject setupPanel,discardPanel,deckResetPanel;
-        private TMP_Text setupHeading,setupCount,setupLeft,setupRight,setupMessage,discardLeft,discardRight;
+        private GameObject setupPanel,discardPanel,deckResetPanel,rulesPanel;
+        private TMP_Text setupHeading,setupCount,setupLeft,setupRight,setupMessage,discardLeft,discardRight,setupHelp;
         private Button confirmDeck,undoDeck,discardButton;
         public PhysicalDeckRegistry DeckRegistration => deckRegistry;
-        private bool ModalOpen => (leavePanel!=null&&leavePanel.activeSelf)||(discardPanel!=null&&discardPanel.activeSelf)||(deckResetPanel!=null&&deckResetPanel.activeSelf);
+        private bool ModalOpen => (leavePanel!=null&&leavePanel.activeSelf)||(discardPanel!=null&&discardPanel.activeSelf)||(deckResetPanel!=null&&deckResetPanel.activeSelf)||(rulesPanel!=null&&rulesPanel.activeSelf);
         private bool CanInteract => Match!=null&&!handoff&&!ModalOpen;
         private ArcaneUIFeedback feedback;
         private readonly Dictionary<int,RectTransform> ownViews=new Dictionary<int,RectTransform>(),enemyViews=new Dictionary<int,RectTransform>();
@@ -42,9 +42,10 @@ namespace CardGame.UI
             if(canvas!=null)return;
             canvas=ArcaneMainMenu.CreateCanvas("MultiCardCanvas",10);canvas.SetParent(transform,false);canvas=ArcaneUIFactory.SafeContent(canvas);
             ArcaneMainMenu.Box("Background",canvas,0,0,1,1,ArcaneMainMenu.Ink);
-            ArcaneMainMenu.Label("Title",canvas,"ARCANE DUEL  /  FİZİKSEL DESTE",.025f,.925f,.79f,.99f,25,ArcaneMainMenu.Gold,TextAnchor.MiddleLeft);
+            ArcaneMainMenu.Label("Title",canvas,"ARCANE DUEL  /  FİZİKSEL DESTE",.025f,.925f,.65f,.99f,25,ArcaneMainMenu.Gold,TextAnchor.MiddleLeft);
             ArcaneMainMenu.Action("TableMenuButton",canvas,"MENÜ",.91f,.935f,.985f,.985f,()=>{feedback.Clear();scanGate.Lock();leavePanel.SetActive(true);});
             ArcaneMainMenu.Action("DeckSetupButton",canvas,"DESTE",.82f,.935f,.90f,.985f,RequestDeckReset);
+            ArcaneMainMenu.Action("RulesButton",canvas,"KURALLAR",.68f,.935f,.79f,.985f,ShowRules);
             enemyInfo=ArcaneMainMenu.Label("EnemyInfo",canvas,"",.025f,.84f,.48f,.92f,19,Color.white,TextAnchor.MiddleLeft);
             enemyInfo.rectTransform.anchorMax=new Vector2(.44f,.92f);
             enemyHero=ArcaneMainMenu.Action("EnemyHeroButton",canvas,"RAKİP KAHRAMAN",.45f,.845f,.655f,.915f,()=>AttackTarget(-1));
@@ -95,7 +96,7 @@ namespace CardGame.UI
             var root=setupPanel.transform;
             setupHeading=ArcaneMainMenu.Label("SetupHeading",root,"DESTE KAYDI",.055f,.82f,.75f,.96f,30,ArcaneMainMenu.Gold);
             setupCount=ArcaneMainMenu.Label("SetupCount",root,"0 / 20",.76f,.82f,.945f,.96f,28,ArcaneMainMenu.Gold);
-            ArcaneMainMenu.Label("SetupHelp",root,"Her oyuncu 20 farklı kart kaydeder. Kamera alanında tek kart olsun.\nAynı kart iki desteye eklenemez. Kayıttan sonra fiziksel olarak karıştırın.",.055f,.69f,.945f,.81f,17,Color.white);
+            setupHelp=ArcaneMainMenu.Label("SetupHelp",root,"Her oyuncu 20 farklı kart kaydeder. Kamera alanında tek kart olsun.\nAynı kart iki desteye eklenemez. Kayıttan sonra fiziksel olarak karıştırın.",.055f,.69f,.945f,.81f,17,Color.white);
             setupLeft=ArcaneMainMenu.Label("SetupCardsLeft",root,"",.055f,.24f,.48f,.68f,20,Color.white,TextAnchor.UpperLeft);
             setupRight=ArcaneMainMenu.Label("SetupCardsRight",root,"",.52f,.24f,.945f,.68f,20,Color.white,TextAnchor.UpperLeft);
             setupMessage=ArcaneMainMenu.Label("SetupMessage",root,"",.055f,.15f,.945f,.23f,18,ArcaneMainMenu.Gold);
@@ -110,7 +111,7 @@ namespace CardGame.UI
             deckResetPanel=Overlay("DeckResetConfirmation","DESTELERİ YENİDEN KAYDET?",out var warning);
             warning.text="Mevcut maç ve deste kayıtları sıfırlanacak.\nAynı destelerle tekrar oynamak için masadaki YENİ MAÇ düğmesini kullan.";
             ArcaneMainMenu.Action("CancelDeckResetButton",deckResetPanel.transform,"VAZGEÇ",.25f,.25f,.48f,.35f,()=>deckResetPanel.SetActive(false));
-            ArcaneMainMenu.Action("ConfirmDeckResetButton",deckResetPanel.transform,"YENİ DESTE",.52f,.25f,.75f,.35f,ResetDecks);deckResetPanel.SetActive(false);
+            ArcaneMainMenu.Action("ConfirmDeckResetButton",deckResetPanel.transform,"YENİ DESTE",.52f,.25f,.75f,.35f,ResetDecks);deckResetPanel.SetActive(false);BuildRulesPanel();
         }
         private static string CardNames(IReadOnlyList<CardData> cards,int offset,int count)
         {return string.Join("\n",cards.Skip(offset).Take(count).Select((c,i)=>(offset+i+1)+". "+c.cardName));}
@@ -119,7 +120,9 @@ namespace CardGame.UI
             setupPanel.SetActive(!handoff);setupHeading.text="OYUNCU "+(deckRegistry.CurrentPlayer+1)+" · DESTE KAYDI";
             setupCount.text=deckRegistry.Count+" / "+PhysicalDeckRegistry.DeckSize;
             var cards=deckRegistry.GetDeck(deckRegistry.CurrentPlayer);
-            setupLeft.text=cards.Count==0?"Henüz kart kaydedilmedi.":CardNames(cards,0,10);setupRight.text=CardNames(cards,10,10);setupMessage.text=deckRegistry.Status;
+            setupLeft.text=cards.Count==0?"Henüz kart kaydedilmedi.":DeckNames(cards,0,10);setupRight.text=DeckNames(cards,10,10);setupMessage.text=deckRegistry.Status;
+            double average=cards.Count==0?0:cards.Average(c=>MultiCardMatch.CostOf(c));int cheap=cards.Count(c=>MultiCardMatch.CostOf(c)<=MultiCardRules.StartingMana);
+            setupHelp.text="20 farklı kartı tek tek okut. Aynı kart iki desteye eklenemez.\nKayıttan sonra fiziksel olarak karıştır.\nMana ortalaması: "+average.ToString("F1")+" · "+MultiCardRules.StartingMana+" ve altı: "+cheap+" kart. Ucuz ve pahalı kartları karıştır.";
             confirmDeck.interactable=deckRegistry.CanConfirm&&!handoff;undoDeck.interactable=cards.Count>0&&!handoff;
             ownInfo.text="Destendeki kartları tek tek okut. Her karttan sonra kamera boş kalsın.";enemyInfo.text="DESTE KAYDI · 20 FARKLI KART";
             turnInfo.text="OYUNCU "+(deckRegistry.CurrentPlayer+1);status.text="Fiziksel desteni kaydet.";selection.text="Kartları kendi seçtiğin sırayla kaydet.\nKaydın ardından fiziksel olarak karıştır.";
@@ -127,6 +130,21 @@ namespace CardGame.UI
             ArcaneUIHighlight.Show(enemyHero.gameObject,ArcaneUIHighlight.Kind.None);
             Clear(hand);Clear(ownBoard);Clear(enemyBoard);ownViews.Clear();enemyViews.Clear();
         }
+        private static string DeckNames(IReadOnlyList<CardData> cards,int offset,int count)
+        {return string.Join("\n",cards.Skip(offset).Take(count).Select((c,i)=>(offset+i+1)+". "+c.cardName+" · "+MultiCardMatch.CostOf(c)+" MANA"));}
+        private void BuildRulesPanel()
+        {
+            rulesPanel=ArcaneMainMenu.Box("MultiCardRules",canvas,0,0,1,1,new Color(.025f,.03f,.065f,.99f)).gameObject;rulesPanel.GetComponent<Image>().raycastTarget=true;rulesPanel.GetComponent<Image>().sprite=null;rulesPanel.GetComponent<Image>().color=new Color(.025f,.02f,.018f,1);
+            ArcaneMainMenu.Box("RulesFrame",rulesPanel.transform,.04f,.035f,.96f,.965f,ArcaneMainMenu.Panel);
+            ArcaneMainMenu.Label("Title",rulesPanel.transform,"FİZİKSEL MASA KURALLARI",.10f,.83f,.90f,.95f,32,ArcaneMainMenu.Gold);
+            string first="BASILI DEĞERLER\nKart üzerindeki HP ve ATK aynen kullanılır.\nMavi köşedeki sayı bu modun mana bedelidir.\n\nKAHRAMAN\nHer oyuncu "+MultiCardRules.HeroHealth+" canla başlar.\nRakip kartı veya kahramanı hedef seçebilirsin.\n\nSAVAŞ\nYeni oynanan kart o tur saldıramaz.\nHer birlik kendi turunda bir kez saldırır.\nKartlar karşılıklı ve aynı anda hasar verir.\nÖlen kartı kullanılmış yığınına ayır.";
+            string second="MANA\nİlk oyuncu "+MultiCardRules.StartingMana+", ikinci oyuncu "+MultiCardRules.SecondStartingMana+" mana ile başlar.\nHer kendi turunda +1; en fazla "+MultiCardRules.MaximumMana+" mana.\nEk çekim 1 mana ve turda bir kezdir.\n\nEL VE DESTE\nİki oyuncu da "+MultiCardRules.FirstOpeningCards+" başlangıç kartı okutur.\nİkinci oyuncu ilk turunda ayrıca 1 kart çeker.\nHer tur çektiğin kartı oynamadan önce okut.\n20 kartlık deste · 10 kartlık el · 7 masa kartı.\n\nDESTE BİTİNCE\nYorgunluk hasarı "+MultiCardRules.FatigueStep+", "+(MultiCardRules.FatigueStep*2)+", "+(MultiCardRules.FatigueStep*3)+" diye artar.";
+            ArcaneMainMenu.Label("PrintedStatsRules",rulesPanel.transform,first,.08f,.22f,.48f,.80f,19,Color.white,TextAnchor.UpperLeft);
+            ArcaneMainMenu.Label("ManaDrawRules",rulesPanel.transform,second,.53f,.22f,.93f,.80f,19,Color.white,TextAnchor.UpperLeft);
+            ArcaneMainMenu.Action("CloseRulesButton",rulesPanel.transform,"MASAYA DÖN",.38f,.055f,.62f,.15f,()=>{rulesPanel.SetActive(false);scanGate.Lock();});rulesPanel.SetActive(false);
+        }
+        public void ShowRules()
+        {if(handoff||ModalOpen)return;if(feedback!=null)feedback.Clear();scanGate.Lock();rulesPanel.SetActive(true);}
         public void RequestDeckReset()
         {if(handoff||ModalOpen)return;if(feedback!=null)feedback.Clear();scanGate.Lock();deckResetPanel.SetActive(true);}
         public void ShowDiscard()
@@ -141,7 +159,7 @@ namespace CardGame.UI
             if(feedback!=null)feedback.Clear();
             deckRegistry=new PhysicalDeckRegistry(Resources.LoadAll<CardData>("Cards"));Match=null;
             selectedHand=selectedAttacker=-1;handoff=false;scanGate.Lock();scanMessage="Önce kamerayı boşalt; sonra destendeki ilk kartı okut.";
-            passPanel.SetActive(false);discardPanel.SetActive(false);deckResetPanel.SetActive(false);Refresh();
+            passPanel.SetActive(false);discardPanel.SetActive(false);deckResetPanel.SetActive(false);rulesPanel.SetActive(false);Refresh();
         }
         public void Restart()
         {
@@ -149,7 +167,7 @@ namespace CardGame.UI
             if(feedback!=null)feedback.Clear();
             Match=MultiCardMatch.CreatePhysical(deckRegistry.GetDeck(0),deckRegistry.GetDeck(1));
             selectedHand=selectedAttacker=-1;scanGate.Lock();handoff=true;setupPanel.SetActive(false);discardPanel.SetActive(false);
-            passText.text="Tüm kartları kendi destelerinize geri alın ve fiziksel olarak karıştırın.\nOyuncu 1, destenden 4 kart çek; hazır olduğunda tek tek okut.";
+            passText.text="Tüm kartları kendi destelerinize geri alın ve fiziksel olarak karıştırın.\nOyuncu 1, destenden "+MultiCardRules.FirstOpeningCards+" kart çek; hazır olduğunda tek tek okut.";
             passPanel.SetActive(true);Refresh();
         }
         public void ConfirmRegisteredDeck()
@@ -295,7 +313,7 @@ namespace CardGame.UI
                     selectedHand=selectedAttacker=-1;scanGate.Lock();
                     if(Match.CurrentPlayer!=before)
                     {
-                        feedback.Clear();handoff=true;passText.text=Match.OpeningHands?"Ekranı Oyuncu 2'ye devret.\nDestenden 3 kart çek ve tek tek okut.":"Başlangıç elleri hazır. Ekranı Oyuncu 1'e devret.\nİlk tur başlayacak.";passPanel.SetActive(true);
+                        feedback.Clear();handoff=true;passText.text=Match.OpeningHands?"Ekranı Oyuncu 2'ye devret.\nDestenden "+MultiCardRules.SecondOpeningCards+" kart çek ve tek tek okut.":"Başlangıç elleri hazır. Ekranı Oyuncu 1'e devret.\nİlk tur başlayacak.";passPanel.SetActive(true);
                     }
                 }
                 Refresh();return accepted;
