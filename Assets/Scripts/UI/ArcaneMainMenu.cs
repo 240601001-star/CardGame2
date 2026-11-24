@@ -1,4 +1,4 @@
-using CardGame.Core;
+﻿using CardGame.Core;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -31,8 +31,21 @@ namespace CardGame.UI
             modesButton.onClick.AddListener(ShowModes);settingsButton.onClick.AddListener(ShowSettings);quitButton.onClick.AddListener(Quit);
             localButton.onClick.AddListener(PlayLocal);multiButton.onClick.AddListener(()=>Load(MultiCardTable.SceneName));
             backButton.onClick.AddListener(ShowModes);saveButton.onClick.AddListener(SaveSettings);
-            volume.onValueChanged.AddListener(value=>volumeValue.text=Mathf.RoundToInt(value*100)+"%");
-            ShowModes();
+            volume.onValueChanged.AddListener(value=>{volumeValue.text=Mathf.RoundToInt(value*100)+"%";AudioListener.volume=value;});
+            PolishVolumeSlider();ShowModes();
+        }
+        private void PolishVolumeSlider()
+        {
+            var area=volume.fillRect.parent as RectTransform;
+            Rect(area,.05f,.35f,.95f,.65f);
+            var track=new GameObject("VolumeTrack",typeof(RectTransform),typeof(Image));track.transform.SetParent(volume.transform,false);
+            Rect(track.GetComponent<RectTransform>(),.05f,.35f,.95f,.65f);track.transform.SetSiblingIndex(0);
+            track.GetComponent<Image>().color=new Color(.08f,.12f,.14f);track.GetComponent<Image>().raycastTarget=false;
+            var fill=volume.fillRect.GetComponent<Image>();fill.sprite=null;fill.color=new Color(.25f,.68f,.74f);fill.raycastTarget=false;
+            var slide=new GameObject("VolumeHandleArea",typeof(RectTransform));slide.transform.SetParent(volume.transform,false);
+            Rect(slide.GetComponent<RectTransform>(),.05f,.18f,.95f,.82f);
+            var handle=new GameObject("VolumeHandle",typeof(RectTransform),typeof(Image));handle.transform.SetParent(slide.transform,false);
+            var rect=handle.GetComponent<RectTransform>();rect.sizeDelta=new Vector2(18,0);handle.GetComponent<Image>().color=Gold;handle.GetComponent<Image>().raycastTarget=false;volume.handleRect=rect;
         }
         public void ShowModes(){modes.SetActive(true);settings.SetActive(false);}
         public void ShowSettings()
@@ -43,7 +56,7 @@ namespace CardGame.UI
         public void SaveSettings()
         {
             AudioListener.volume=volume.value;Screen.fullScreen=fullscreen.isOn;QualitySettings.SetQualityLevel(quality.value);
-            PlayerPrefs.SetFloat(VolumeKey,volume.value);PlayerPrefs.SetInt(FullscreenKey,fullscreen.isOn?1:0);PlayerPrefs.SetInt(QualityKey,quality.value);PlayerPrefs.Save();settingsStatus.text="Ayarlar kaydedildi.";
+            PlayerPrefs.SetFloat(VolumeKey,volume.value);PlayerPrefs.SetInt(FullscreenKey,fullscreen.isOn?1:0);PlayerPrefs.SetInt(QualityKey,quality.value);PlayerPrefs.Save();settingsStatus.text="Ayarlar kaydedildi.";ArcaneUIAudio.Play(ArcaneUIAudio.Cue.Scan);
         }
         public void PlayLocal(){Load(DuelSceneName);}
         private void Load(string scene)

@@ -1,4 +1,4 @@
-using TMPro;
+﻿using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -66,7 +66,14 @@ namespace CardGame.UI
         public static Button Button(string name,Transform parent,string value,float x0,float y0,float x1,float y1,UnityEngine.Events.UnityAction action)
         {
             var go=Clone(Theme.buttonPrefab,parent);go.name=name;Rect(go.GetComponent<RectTransform>(),x0,y0,x1,y1);
-            go.GetComponentInChildren<TMP_Text>(true).text=value;var button=go.GetComponent<Button>();button.onClick.RemoveAllListeners();button.onClick.AddListener(action);return button;
+            go.GetComponentInChildren<TMP_Text>(true).text=value;var button=go.GetComponent<Button>();button.onClick.RemoveAllListeners();button.onClick.AddListener(action);StyleButton(button);if(Application.isPlaying)ArcaneUIAudio.Bind(button);return button;
+        }
+        public static void StyleButton(Button button)
+        {
+            var text=button.GetComponentInChildren<TMP_Text>(true);if(text==null)return;
+            text.font=Theme.bodyFont;text.fontStyle=FontStyles.Normal;text.enableAutoSizing=true;
+            text.fontSize=26;text.fontSizeMax=26;text.fontSizeMin=16;
+            text.margin=new Vector4(10,3,10,3);text.alignment=TextAlignmentOptions.Center;
         }
         public static GameObject Module(GameObject prefab,string name,Transform parent,float x0,float y0,float x1,float y1)
         {var go=Clone(prefab,parent);go.name=name;Rect(go.GetComponent<RectTransform>(),x0,y0,x1,y1);return go;}

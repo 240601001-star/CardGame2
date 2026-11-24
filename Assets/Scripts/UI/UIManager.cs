@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using CardGame.Core;
@@ -53,6 +53,7 @@ namespace CardGame.UI
         [SerializeField] private GameObject tacticGuidePanel;
         private GameManager _game;
         private ArcaneUIFeedback feedback;
+        private DuelState? soundState;
         private int feedbackRound=-1,feedbackExchange=-1;
         private readonly int[] previousHP=new int[2];
         private void RefreshFeedback()
@@ -128,6 +129,7 @@ namespace CardGame.UI
         public void Refresh()
         {
             if (_game == null) return;
+            if(soundState!=_game.State){if(_game.State==DuelState.GameOver)ArcaneUIAudio.Play(ArcaneUIAudio.Cue.Win);else if(_game.State==DuelState.RoundResult)ArcaneUIAudio.Play(ArcaneUIAudio.Cue.Turn);soundState=_game.State;}
             Set(roundText, $"RAUND {_game.CurrentRound} / {MatchScore.MaxRounds}");
             Set(scoreText, $"OYUNCU 1   {_game.Score.Player1}  :  {_game.Score.Player2}   OYUNCU 2");
             Set(turnIndicatorText, _game.State == DuelState.GameOver ? "MAÇ TAMAMLANDI" :

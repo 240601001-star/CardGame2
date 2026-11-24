@@ -26,6 +26,7 @@ namespace CardGame.UI
         private GameObject passPanel,leavePanel;
         private int selectedHand=-1,selectedAttacker=-1;
         private bool handoff;
+        private bool resultSoundPlayed;
         private PhysicalDeckRegistry deckRegistry;
         private GameObject setupPanel,discardPanel,deckResetPanel,rulesPanel;
         private TMP_Text setupHeading,setupCount,setupLeft,setupRight,setupMessage,discardLeft,discardRight,setupHelp;
@@ -168,7 +169,7 @@ namespace CardGame.UI
         {
             if(deckRegistry==null||!deckRegistry.IsComplete){ResetDecks();return;}
             if(feedback!=null)feedback.Clear();
-            Match=MultiCardMatch.CreatePhysical(deckRegistry.GetDeck(0),deckRegistry.GetDeck(1));
+            resultSoundPlayed=false;Match=MultiCardMatch.CreatePhysical(deckRegistry.GetDeck(0),deckRegistry.GetDeck(1));
             selectedHand=selectedAttacker=-1;scanGate.Lock();handoff=true;setupPanel.SetActive(false);discardPanel.SetActive(false);
             passText.text="Tüm kartları kendi destelerinize geri alın ve fiziksel olarak karıştırın.\nOyuncu 1, destenden "+MultiCardRules.FirstOpeningCards+" kart çek; hazır olduğunda tek tek okut.";
             passPanel.SetActive(true);Refresh();
@@ -230,10 +231,11 @@ namespace CardGame.UI
             feedback.Clear();selectedHand=selectedAttacker=-1;scanGate.Lock();handoff=!Match.IsOver;Refresh();
             passText.text="Ekranı Oyuncu "+(Match.CurrentPlayer+1)+"'e devret.\nDestenden 1 kart çek; hazır olduğunda okut.";passPanel.SetActive(handoff);
         }
-        public void ConfirmHandoff(){handoff=false;scanGate.Lock();scanMessage="Önce kamera alanını boşalt; sonra tek kart okut.";passPanel.SetActive(false);Refresh();}
+        public void ConfirmHandoff(){if(handoff)ArcaneUIAudio.Play(ArcaneUIAudio.Cue.Turn);handoff=false;scanGate.Lock();scanMessage="Önce kamera alanını boşalt; sonra tek kart okut.";passPanel.SetActive(false);Refresh();}
         public void Refresh()
         {
             if(Match==null){RefreshRegistration();return;}
+            if(Match.IsOver&&!resultSoundPlayed){resultSoundPlayed=true;ArcaneUIAudio.Play(ArcaneUIAudio.Cue.Win);}
             setupPanel.SetActive(false);discardButton.interactable=!handoff;
             if(Match.IsOver)selectedHand=selectedAttacker=-1;
             var own=Match.GetPlayer(Match.CurrentPlayer);var enemy=Match.GetPlayer(1-Match.CurrentPlayer);
@@ -249,7 +251,7 @@ namespace CardGame.UI
             Clear(hand);Clear(ownBoard);Clear(enemyBoard);ownViews.Clear();enemyViews.Clear();
             if(!handoff)for(int i=0;i<own.Hand.Count;i++)
             {
-                int slot=i;var c=own.Hand[i];var view=CardButton("HandCard_"+i,hand,c,i,10,MultiCardMatch.HealthOf(c),MultiCardMatch.AttackOf(c),selectedHand==i,Match.CanPlay(i)?green:ArcaneMainMenu.Panel,()=>SelectHand(slot),true,"");
+                int slot=i;var c=own.Hand[i];var view=CardButton("HandCard_"+i,hand,c,i,Mathf.Max(6,own.Hand.Count),MultiCardMatch.HealthOf(c),MultiCardMatch.AttackOf(c),selectedHand==i,Match.CanPlay(i)?green:ArcaneMainMenu.Panel,()=>SelectHand(slot),true,"");
                 view.interactable=CanInteract&&Match.CanAct;
                 ArcaneUIHighlight.Show(view.gameObject,selectedHand==i?ArcaneUIHighlight.Kind.Selected:Match.CanPlay(i)&&!Match.IsOver?ArcaneUIHighlight.Kind.Playable:ArcaneUIHighlight.Kind.None);
             }
@@ -309,6 +311,7 @@ namespace CardGame.UI
             else if(added>0)bulkMessage=added+" yeni kart eklendi · "+deckRegistry.Count+" / 20"+(deckRegistry.CanConfirm?" · DESTENİ KAYDET.":" · Diğer kartları göster.");
             else if(bulkGate.WaitingForClear)bulkMessage="Önce kamera alanını boşalt.";
             else if(ready.Count>0)bulkMessage=deckRegistry.CanConfirm?"20 kart hazır · DESTENİ KAYDET.":"Görünen kartlar zaten kayıtlı. Diğer kartları göster.";
+            if(added>0)ArcaneUIAudio.Play(ArcaneUIAudio.Cue.Scan);
             if(added>0||ready.Count>0||armed)Refresh();
             return added;
         }
@@ -378,7 +381,7 @@ namespace CardGame.UI
             button.GetComponent<Image>().color=selected?new Color(1f,.88f,.62f):Color.white;
             var rect=button.transform;var art=ArcaneMainMenu.Box("Portrait",rect,.06f,.43f,.94f,.96f,Color.white).GetComponent<Image>();
             art.sprite=Portrait(card);art.preserveAspect=true;art.enabled=art.sprite!=null;
-            var label=ArcaneMainMenu.Label("Name",rect,card.cardName,.04f,.25f,.96f,.43f,12,Color.white);label.enableAutoSizing=true;label.fontSizeMin=12;label.fontSizeMax=18;
+            var label=ArcaneMainMenu.Label("Name",rect,card.cardName,.04f,.25f,.96f,.43f,12,Color.white);label.enableAutoSizing=true;label.fontSizeMin=10;label.fontSizeMax=18;
             ArcaneMainMenu.Label("Stats",rect,$"{atk} ATK  /  {hp} CAN",.04f,.065f,.96f,.22f,isHand?11:13,ArcaneMainMenu.Gold);
             if(isHand)
             {
